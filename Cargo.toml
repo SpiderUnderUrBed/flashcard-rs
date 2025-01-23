@@ -1,0 +1,10 @@
+[package]
+name = "flashcard-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.13", features = ["canvas"] }
+iced_shapes = { path = "./iced_shapes" }
+iced_aw = "0.11.0"
+
