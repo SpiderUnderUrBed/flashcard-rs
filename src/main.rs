@@ -27,8 +27,7 @@ pub fn main() -> iced::Result {
 struct App {
     show_modal: Popups,
     current_card: Flashcard,
-    //topics: Vec<Topic>,
-    test: Vec<Topic>,
+    topics: Vec<Topic>,
     current_topic: String,
     expand_questions: bool,
     expand_awnsers: bool,
@@ -87,7 +86,6 @@ enum Message {
     SubmitTopic(Topic),
     UpdateTopic(String),
     SelectTopic(Topic),
-    SelectTest(Topic),
     AwnserChanged(String),
     QuestionChanged(String),
     ExpandQuestions,
@@ -158,7 +156,7 @@ impl App {
             },
             Message::SubmitTopic(topic, ) => {
                 //if !self.topics.last().unwrap().is_empty(){
-                    self.current_card.topics.push(topic);
+                    self.topics.push(topic);
                     //self.topics.push("".to_string());
                 //}
             },
@@ -166,38 +164,19 @@ impl App {
                 self.current_topic = content;
             },
             Message::SelectTopic(sent_topic) => {
-                if let Some(topic) = self.current_card.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
+                if let Some(topic) = self.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
                     let mut final_color = Color::WHITE;
-            
-                    enum Op {
-                        Push,
-                        Retain,
-                    }
-                    let mut op = None;
-            
                     if sent_topic.color.unwrap() == Color::WHITE {
+                        //self.current_card.topics.remove(self.current_card.topics.iter().position(|x| *x == sent_topic.content).unwrap_or(0));
+                        self.current_card.topics.retain(|v| v.id != sent_topic.id);
                         final_color = Color::BLACK;
-                        op = Some(Op::Retain);
                     } else {
+                        self.current_card.topics.push(sent_topic);
                         final_color = Color::WHITE;
-                        op = Some(Op::Push);
                     }
-            
-                    *topic = Topic {
-                        content: topic.content.clone(),
-                        color: Some(final_color),
-                        id: topic.id,
-                    };
-            
-                    if let Some(op) = op {
-                        match op {
-                            Op::Push => {}
-                            Op::Retain => self.current_card.topics.retain(|v| v.id != sent_topic.id),
-                        }
-                    }
+                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id }
                 }
             }
-            
             Message::AwnserChanged(content) => {
                 self.current_card.awnser = content;
             },
@@ -208,35 +187,6 @@ impl App {
                 self.expand_awnsers =  !self.expand_awnsers;
             },
             Message::Error => todo!(),
-            Message::SelectTest(sent_topic) => {
-                if let Some(topic) = self.test.iter_mut().find(|topic| topic.id == sent_topic.id) {
-                    let mut final_color = Color::WHITE;
-            
-                    enum Op {
-                        Retain,
-                    }
-                    let mut op = None;
-            
-                    if sent_topic.color.unwrap() == Color::WHITE {
-                        final_color = Color::BLACK;
-                        op = Some(Op::Retain);
-                    } else {
-                        final_color = Color::WHITE;
-                    }
-            
-                    *topic = Topic {
-                        content: topic.content.clone(),
-                        color: Some(final_color),
-                        id: topic.id,
-                    };
-            
-                    if let Some(op) = op {
-                        match op {
-                            Op::Retain => self.test.retain(|v| v.id != sent_topic.id),
-                        }
-                    }
-                }
-            }
         }
     }
     fn view(&self) -> Container<Message> { 
@@ -477,7 +427,6 @@ impl App {
                         container(stack![
                             background_rect,
                             column!(
-                                topic_scrollbar(self),
                                 container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
                             )
                         ]),
@@ -600,7 +549,7 @@ impl App {
                                             Space::new(0.0, 80),
                                             container(
                                                 column!(
-                                                Button::new("Submit").on_press(Message::SubmitTopic(Topic { content: self.current_topic.clone(), color: Some(Color::BLACK), id: self.current_card.topics.len() as u32})),
+                                                Button::new("Submit").on_press(Message::SubmitTopic(Topic { content: self.current_topic.clone(), color: Some(Color::BLACK), id: self.topics.len() as u32})),
                                                 text_input("Put text here",  &self.current_topic)
                                                 .on_input(Message::UpdateTopic),
                                                 )
@@ -680,21 +629,7 @@ impl MenuButton {
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
 
-    let item_arr = match app.show_modal {
-        Popups::Configure => {
-            app.current_card.topics.clone()
-        }
-        Popups::Topics => {
-            app.current_card.topics.clone()
-        }
-        Popups::Test => {
-            app.test.clone()
-        }
-        _ => {
-            vec![]
-        }
-    };
-    for (id, topic) in item_arr.iter().enumerate() {
+    for (id, topic) in app.topics.iter().enumerate() {
         let topic_background: Element<'_, Message, Theme, Renderer> = Rectangle::new(100.0, 80.0)
             .style(topic.color.unwrap_or(Color::from_rgb8(0, 0, 0)))
             .into();
@@ -723,9 +658,6 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                             })
                             .on_press(
                                 match app.show_modal {
-                                    Popups::Configure => {
-                                        Message::SelectTest(topic.clone())
-                                    }
                                     Popups::Topics => {
                                         Message::SelectTopic(topic.clone())
                                     }
