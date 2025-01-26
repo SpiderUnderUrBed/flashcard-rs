@@ -191,6 +191,7 @@ impl App {
             
                     if let Some(op) = op {
                         match op {
+                            Op::Push => self.current_card.topics.push(sent_topic),
                             Op::Retain => self.current_card.topics.retain(|v| v.id != sent_topic.id),
                         }
                     }
@@ -210,32 +211,17 @@ impl App {
             Message::SelectTest(sent_topic) => {
                 if let Some(topic) = self.test.iter_mut().find(|topic| topic.id == sent_topic.id) {
                     let mut final_color = Color::WHITE;
-            
-                    enum Op {
-                        Retain,
-                    }
-                    let mut op = None;
-            
                     if sent_topic.color.unwrap() == Color::WHITE {
+                        //self.current_card.topics.remove(self.current_card.topics.iter().position(|x| *x == sent_topic.content).unwrap_or(0));
+                        self.current_card.topics.retain(|v| v.id != sent_topic.id);
                         final_color = Color::BLACK;
-                        op = Some(Op::Retain);
                     } else {
+                        self.current_card.topics.push(sent_topic);
                         final_color = Color::WHITE;
                     }
-            
-                    *topic = Topic {
-                        content: topic.content.clone(),
-                        color: Some(final_color),
-                        id: topic.id,
-                    };
-            
-                    if let Some(op) = op {
-                        match op {
-                            Op::Retain => self.test.retain(|v| v.id != sent_topic.id),
-                        }
-                    }
+                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id }
                 }
-            }
+            },
         }
     }
     fn view(&self) -> Container<Message> { 
@@ -476,7 +462,6 @@ impl App {
                         container(stack![
                             background_rect,
                             column!(
-                                topic_scrollbar(self),
                                 container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
                             )
                         ]),
@@ -679,21 +664,7 @@ impl MenuButton {
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
 
-    let item_arr = match app.show_modal {
-        Popups::Configure => {
-            app.current_card.topics.clone()
-        }
-        Popups::Topics => {
-            app.current_card.topics.clone()
-        }
-        Popups::Test => {
-            app.test.clone()
-        }
-        _ => {
-            vec![]
-        }
-    };
-    for (id, topic) in item_arr.iter().enumerate() {
+    for (id, topic) in app.current_card.topics.iter().enumerate() {
         let topic_background: Element<'_, Message, Theme, Renderer> = Rectangle::new(100.0, 80.0)
             .style(topic.color.unwrap_or(Color::from_rgb8(0, 0, 0)))
             .into();
