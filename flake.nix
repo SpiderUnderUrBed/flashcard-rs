@@ -13,7 +13,7 @@
       systems = nixpkgs.lib.systems.flakeExposed;
       perSystem = {self', pkgs, system, ...}:
         let
-          rustVersion = "1.80.0";  # Update to a compatible version
+          rustVersion = "1.84.0";  # Update to a compatible version
           pkgs = import nixpkgs {
             inherit system;
             overlays = [inputs.cargo2nix.overlays.default (import inputs.rust-overlay)];
@@ -51,6 +51,7 @@
             ] ++ runtimeDeps ++ [
               rust-analyzer-unwrapped
               (rust-bin.stable.${rustVersion}.default.override { extensions = [ "rust-src" ]; })
+             # (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
             ];
             LD_LIBRARY_PATH = "${nixpkgs.lib.makeLibraryPath buildInputs}";
           };
