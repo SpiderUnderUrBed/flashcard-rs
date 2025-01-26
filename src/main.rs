@@ -28,6 +28,7 @@ struct App {
     show_modal: Popups,
     current_card: Flashcard,
     topics: Vec<Topic>,
+    test: Vec<Topic>,
     current_topic: String,
     expand_questions: bool,
     expand_awnsers: bool,
@@ -86,6 +87,7 @@ enum Message {
     SubmitTopic(Topic),
     UpdateTopic(String),
     SelectTopic(Topic),
+    SelectTest(Topic),
     AwnserChanged(String),
     QuestionChanged(String),
     ExpandQuestions,
@@ -187,6 +189,22 @@ impl App {
                 self.expand_awnsers =  !self.expand_awnsers;
             },
             Message::Error => todo!(),
+            Message::SelectTest(sent_topic) => {
+                
+                if let Some(topic) = self.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
+                    
+                    let mut final_color = Color::WHITE;
+                    if sent_topic.color.unwrap() == Color::WHITE {
+                        //self.current_card.topics.remove(self.current_card.topics.iter().position(|x| *x == sent_topic.content).unwrap_or(0));
+                        self.test.retain(|v| v.id != sent_topic.id);
+                        final_color = Color::BLACK;
+                    } else {
+                        self.test.push(sent_topic);
+                        final_color = Color::WHITE;
+                    }
+                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id }
+                }
+            },
         }
     }
     fn view(&self) -> Container<Message> { 
@@ -427,6 +445,7 @@ impl App {
                         container(stack![
                             background_rect,
                             column!(
+                                topic_scrollbar(self),
                                 container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
                             )
                         ]),
@@ -628,10 +647,35 @@ impl MenuButton {
 
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
-
-    for (id, topic) in app.topics.iter().enumerate() {
+    let mut invert_colors = false;
+    let item_arr =  match app.show_modal {
+        Popups::Topics => {
+            // invert_colors = true;
+            app.topics.clone()
+        }
+        Popups::Configure => {
+            invert_colors = true;
+            app.topics.clone()
+        }
+        Popups::Test => {
+            
+            app.test.clone()
+        }
+        _ => {
+            vec![]
+        }
+    };
+    for (id, topic) in item_arr.iter().enumerate() {
+        let final_color = topic.color.unwrap_or(Color::from_rgb8(0, 0, 0));
+        if invert_colors {
+            if final_color == Color::WHITE {
+                final_color == Color::BLACK;
+            } else {
+                final_color == Color::WHITE;
+            }
+        }
         let topic_background: Element<'_, Message, Theme, Renderer> = Rectangle::new(100.0, 80.0)
-            .style(topic.color.unwrap_or(Color::from_rgb8(0, 0, 0)))
+            .style(final_color)
             .into();
         let button_background = Some(Background::Color(topic.color.unwrap_or(Color::BLACK)));
         let mut button_text_color = Color::WHITE;
@@ -658,6 +702,13 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                             })
                             .on_press(
                                 match app.show_modal {
+                                    Popups::Configure => {
+                                        // let mut color = Some(Color::BLACK);
+                                        // if topic.color.unwrap() == Color::BLACK {
+                                        //     color = Some(Color::WHITE)
+                                        // }
+                                        Message::SelectTest(topic.clone())
+                                    }
                                     Popups::Topics => {
                                         Message::SelectTopic(topic.clone())
                                     }
