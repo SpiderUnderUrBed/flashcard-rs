@@ -27,22 +27,26 @@ pub fn main() -> iced::Result {
 struct App {
     show_modal: Popups,
     current_card: Flashcard,
+    //submitted_test_item: Vec<(Topic, Flashcard)>,W
+    submitted_cards: Vec<Flashcard>,
     topics: Vec<Topic>,
+    configurable_topics: Vec<Topic>,
     test: Vec<Topic>,
-    current_topic: String,
+    current_topic: Topic,
     expand_questions: bool,
     expand_awnsers: bool,
     //topics: Vec<String> = vec!["E".to_string()],
     // test: &'static str = "Te"
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct Topic {
     content: String,
     color: Option<Color>,
+    qna: Vec<(String, String)>,
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 struct Flashcard {
     bg_color: Option<Background>,
     header: String,
@@ -66,6 +70,7 @@ enum Popups {
     Test,
     ColorPicker,
     Text,
+    StartTest,
     Topics,
     Configure,
     #[default]
@@ -85,9 +90,11 @@ enum Message {
     ChooseColor,
     SubmitColor(Color),
     SubmitTopic(Topic),
+    SubmitCard(Flashcard),
     UpdateTopic(String),
     SelectTopic(Topic),
     SelectTest(Topic),
+    StartTest,
     AwnserChanged(String),
     QuestionChanged(String),
     ExpandQuestions,
@@ -119,6 +126,9 @@ impl App {
             // },
             Message::QuestionChanged(content) => {
                 self.current_card.question = content;
+            },
+            Message::StartTest => {
+                self.show_modal = Popups::StartTest;
             },
             Message::Debug(_) => {},
             Message::Test => {
@@ -156,27 +166,25 @@ impl App {
             Message::Topics => {
                 self.show_modal = Popups::Topics;
             },
-            Message::SubmitTopic(topic, ) => {
-                //if !self.topics.last().unwrap().is_empty(){
-                    self.topics.push(topic);
-                    //self.topics.push("".to_string());
-                //}
+            Message::SubmitTopic(mut topic, ) => {
+                    self.topics.push(topic.clone());
+                    self.configurable_topics.push(topic);
             },
             Message::UpdateTopic(content) => {
-                self.current_topic = content;
+                self.current_topic = Topic { content, qna: self.current_topic.qna.clone(), ..Default::default() };
             },
             Message::SelectTopic(sent_topic) => {
                 if let Some(topic) = self.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
                     let mut final_color = Color::WHITE;
+                    
                     if sent_topic.color.unwrap() == Color::WHITE {
-                        //self.current_card.topics.remove(self.current_card.topics.iter().position(|x| *x == sent_topic.content).unwrap_or(0));
                         self.current_card.topics.retain(|v| v.id != sent_topic.id);
                         final_color = Color::BLACK;
                     } else {
                         self.current_card.topics.push(sent_topic);
                         final_color = Color::WHITE;
                     }
-                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id }
+                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id, qna: self.current_topic.qna.clone() }
                 }
             }
             Message::AwnserChanged(content) => {
@@ -191,7 +199,7 @@ impl App {
             Message::Error => todo!(),
             Message::SelectTest(sent_topic) => {
                 
-                if let Some(topic) = self.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
+                if let Some(topic) = self.configurable_topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
                     
                     let mut final_color = Color::WHITE;
                     if sent_topic.color.unwrap() == Color::WHITE {
@@ -202,9 +210,14 @@ impl App {
                         self.test.push(sent_topic);
                         final_color = Color::WHITE;
                     }
-                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id }
+                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id, qna: topic.qna.clone() }
                 }
             },
+            Message::SubmitCard(mut card) => {    
+                self.current_topic.qna.push((card.question.clone(), card.awnser.clone()));
+               // self.submitted_topics.push(Topic { content: self.current_topic.content.clone(), color: Some(Color::BLACK), qna: self.current_topic.qna.clone(), id: self.current_topic.id });
+                self.submitted_cards.push(card)
+            }
         }
     }
     fn view(&self) -> Container<Message> { 
@@ -247,6 +260,9 @@ impl App {
         if self.expand_questions {
             question_column.push(Text::new(self.current_card.question.clone()).into());
         }
+
+       // println!("{:#?}", self.current_card.clone());
+
         let main_container: Element<'_, Message, Theme, Renderer> = container(
             column!(
                 container(
@@ -341,6 +357,17 @@ impl App {
                                                     ..Default::default()
                                                 }
                                             }),
+                                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                                        Button::new("Submit")
+                                            .style(|_theme: &Theme, _status| {
+                                                iced::widget::button::Style {
+                                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                                    text_color: Color::from_rgb8(255, 255, 255),
+                                                    ..Default::default()
+                                                }
+                                            })
+                                            .on_press(Message::SubmitCard(self.current_card.clone()))
+                                            ,
                             )),
                             Space::new(7.5, 0.0),
                             //.width(
@@ -446,6 +473,104 @@ impl App {
                             background_rect,
                             column!(
                                 topic_scrollbar(self),
+                                Space::new(0.0, 20.0),
+                                container(Button::new("Start test").on_press(Message::StartTest)).center_x(Length::Fill),
+                                Space::new(0.0, 20.0),
+                                container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
+                            )
+                        ]),
+                        Message::None
+                    )
+                )
+            },
+            Popups::StartTest => {
+                let mut display_sidecards = vec![];
+                // println!("{:#?}", self.test);
+                for (_, card) in self.submitted_cards.iter().enumerate() {
+                    let question = card.question.clone();
+                    let awnser = card.awnser.clone();
+                    // println!("E");
+                    // println!("{:#?}", topic.qna.clone());
+                    //for (_, (question, awnser)) in card.iter().enumerate() {
+                    // println!("{}", question.clone());
+                    // println!("E");
+                    display_sidecards.push(
+                        container(Text::new(question.clone()))
+                        .width(110)
+                        .height(50)
+                        //.center_x(Length::FillPortion(20))
+                        .style(move |_: &iced::Theme| iced::widget::container::Style {
+                            background: Some(Background::Color(Color::WHITE)),
+                            ..Default::default()
+                        })
+                        .into()
+                    );
+                    }
+                //}
+                container(
+                    modal(
+                        main_container,
+                        container(stack![
+                            background_rect,
+                            column!(
+                                //topic_scrollbar(self),
+                                Space::new(0, 20),
+                                container(
+                                    row!(
+                                        Space::new(5, 0),
+                                        container(
+                                            row!(
+                                                Space::new(20.0, 0.0),
+                                                Scrollable::new(
+                                                    column!(
+                                                        Space::new(0.0, 20.0),
+                                                        Column::with_children(display_sidecards)
+                                                    )
+                                                )
+                                            ),
+                                        )
+                                        .width(150)
+                                        .height(250)
+                                        .style(move |_: &iced::Theme| iced::widget::container::Style {
+                                            background: Some(Background::Color(Color::BLACK)),
+                                            ..Default::default()
+                                        }), 
+                                        Space::new(5, 0),
+                                        container(
+                                            container(
+                                                "Test"
+                                                //card()
+                                            )
+                                            .width(250)
+                                            .height(150)
+                                            //.center(30)
+                                            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                                                background: Some(Background::Color(Color::WHITE)),
+                                                ..Default::default()
+                                            }),
+                                            // row!(
+                                            //     Space::new(100.0, 0.0),
+                                            //         column!(
+                                            //             Space::new(0.0, 20.0),
+                                            //             container(
+                                            //                 "Test"
+                                            //                 //card()
+                                            //             ).style(move |_: &iced::Theme| iced::widget::container::Style {
+                                            //                 background: Some(Background::Color(Color::WHITE)),
+                                            //                 ..Default::default()
+                                            //             }),
+                                            //         )
+                                            // )
+                                        )
+                                        .center(Length::Fill)
+                                        .width(500)
+                                        .height(250)
+                                        .style(move |_: &iced::Theme| iced::widget::container::Style {
+                                            background: Some(Background::Color(Color::BLACK)),
+                                            ..Default::default()
+                                        })
+                                    )
+                                ),
                                 container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
                             )
                         ]),
@@ -568,8 +693,8 @@ impl App {
                                             Space::new(0.0, 80),
                                             container(
                                                 column!(
-                                                Button::new("Submit").on_press(Message::SubmitTopic(Topic { content: self.current_topic.clone(), color: Some(Color::BLACK), id: self.topics.len() as u32})),
-                                                text_input("Put text here",  &self.current_topic)
+                                                Button::new("Submit").on_press(Message::SubmitTopic(Topic { content: self.current_topic.content.clone(), color: Some(Color::BLACK), id: self.topics.len() as u32, qna: self.current_topic.qna.clone() })),
+                                                text_input("Put text here",  &self.current_topic.content)
                                                 .on_input(Message::UpdateTopic),
                                                 )
                                             )
@@ -644,18 +769,25 @@ impl MenuButton {
             .on_press(msg)
     }
 }
+// if invert_colors {
+//     if final_color == Color::WHITE {
+//         final_color == Color::BLACK;
+//     } else {
+//         final_color == Color::WHITE;
+//     }
+// }
 
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
-    let mut invert_colors = false;
+    //let mut invert_colors = false;
     let item_arr =  match app.show_modal {
         Popups::Topics => {
             // invert_colors = true;
             app.topics.clone()
         }
         Popups::Configure => {
-            invert_colors = true;
-            app.topics.clone()
+            //invert_colors = true;
+            app.configurable_topics.clone()
         }
         Popups::Test => {
             
@@ -667,13 +799,6 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     };
     for (id, topic) in item_arr.iter().enumerate() {
         let final_color = topic.color.unwrap_or(Color::from_rgb8(0, 0, 0));
-        if invert_colors {
-            if final_color == Color::WHITE {
-                final_color == Color::BLACK;
-            } else {
-                final_color == Color::WHITE;
-            }
-        }
         let topic_background: Element<'_, Message, Theme, Renderer> = Rectangle::new(100.0, 80.0)
             .style(final_color)
             .into();
