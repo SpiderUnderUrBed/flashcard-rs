@@ -27,7 +27,6 @@ pub fn main() -> iced::Result {
 struct App {
     show_modal: Popups,
     current_card: Flashcard,
-    //submitted_test_item: Vec<(Topic, Flashcard)>,W
     submitted_cards: Vec<Flashcard>,
     topics: Vec<Topic>,
     configurable_topics: Vec<Topic>,
@@ -35,8 +34,6 @@ struct App {
     current_topic: Topic,
     expand_questions: bool,
     expand_awnsers: bool,
-    //topics: Vec<String> = vec!["E".to_string()],
-    // test: &'static str = "Te"
 }
 #[derive(Debug, Clone, Default)]
 struct Topic {
@@ -116,14 +113,6 @@ impl App {
             Message::Flashcards => {
               self.show_modal = Popups::Flashcards;
             },
-            // Message::ShowModal => {
-            //     self.show_modal = true;
-            //     widget::focus_next::<text_input::TextInput<Message>>();
-            // }
-            // Message::HideModal => {
-            //     self.hide_modal();
-            //     Task::<Message>::none();
-            // },
             Message::QuestionChanged(content) => {
                 self.current_card.question = content;
             },
@@ -197,8 +186,9 @@ impl App {
                 self.expand_awnsers =  !self.expand_awnsers;
             },
             Message::Error => todo!(),
-            Message::SelectTest(sent_topic) => {
-                
+            Message::SelectTest(mut sent_topic) => {
+                // self.current_topic.qna.push((card.question.clone(), card.awnser.clone()));
+                sent_topic.qna.push((self.current_card.question.clone(), self.current_card.awnser.clone()));
                 if let Some(topic) = self.configurable_topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
                     
                     let mut final_color = Color::WHITE;
@@ -214,7 +204,7 @@ impl App {
                 }
             },
             Message::SubmitCard(mut card) => {    
-                self.current_topic.qna.push((card.question.clone(), card.awnser.clone()));
+                // self.current_topic.qna.push((card.question.clone(), card.awnser.clone()));
                // self.submitted_topics.push(Topic { content: self.current_topic.content.clone(), color: Some(Color::BLACK), qna: self.current_topic.qna.clone(), id: self.current_topic.id });
                 self.submitted_cards.push(card)
             }
@@ -370,12 +360,7 @@ impl App {
                                             ,
                             )),
                             Space::new(7.5, 0.0),
-                            //.width(
-                            //    Length::Fixed(60.0)
-                            //)
                             column!(
-                                //header2,
-                                // Space::new(0.0, 50.0),
                                 card(
                                     "1",
                                     Column::new()
@@ -485,28 +470,23 @@ impl App {
             },
             Popups::StartTest => {
                 let mut display_sidecards = vec![];
-                // println!("{:#?}", self.test);
-                for (_, card) in self.submitted_cards.iter().enumerate() {
-                    let question = card.question.clone();
-                    let awnser = card.awnser.clone();
-                    // println!("E");
-                    // println!("{:#?}", topic.qna.clone());
-                    //for (_, (question, awnser)) in card.iter().enumerate() {
-                    // println!("{}", question.clone());
-                    // println!("E");
-                    display_sidecards.push(
-                        container(Text::new(question.clone()))
-                        .width(110)
-                        .height(50)
-                        //.center_x(Length::FillPortion(20))
-                        .style(move |_: &iced::Theme| iced::widget::container::Style {
-                            background: Some(Background::Color(Color::WHITE)),
-                            ..Default::default()
-                        })
-                        .into()
-                    );
+                for (_, topic) in self.test.iter().enumerate() {
+                    for (_, (question, awnser)) in topic.qna.iter().enumerate() {
+                        if self.submitted_cards.iter().any(|card| card.question == *question) {
+                            display_sidecards.push(
+                                container(Text::new(question.clone()))
+                                    .width(110)
+                                    .height(50)
+                                    .style(move |_: &iced::Theme| iced::widget::container::Style {
+                                        background: Some(Background::Color(Color::WHITE)),
+                                        ..Default::default()
+                                    })
+                                    .into(),
+                            );
+                        }
                     }
-                //}
+                }
+                
                 container(
                     modal(
                         main_container,
