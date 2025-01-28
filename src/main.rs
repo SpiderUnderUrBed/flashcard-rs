@@ -140,6 +140,7 @@ impl App {
                         
                         
                         Message::StartTest => {
+                            dbg!(&self.test);
                             
                             self.qna.clear(); 
                             for topic in &self.test {
@@ -158,6 +159,7 @@ impl App {
                         },
                         
                         Message::SelectTopic(sent_topic) => {
+                            dbg!(sent_topic.clone());
                             if let Some(topic) = self.topics.iter_mut().find(|t| t.id == sent_topic.id) {
                                 let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
                         
