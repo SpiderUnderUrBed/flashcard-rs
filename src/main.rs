@@ -1,4 +1,4 @@
-//#![feature(default_field_values)]
+
 
 
 use std::collections::{VecDeque};
@@ -10,16 +10,16 @@ use iced_aw::menu_items;
 use iced::widget::column;
 
 mod pin;
-// mod topic;
+
 
 use pin::Pin;
 
-// #[derive(Debug, Clone, Eq, PartialEq, Copy)]
-// enum Direction {
-//     Vertical,
-//     Horizontal,
-//     Multi,
-// }
+
+
+
+
+
+
 
 pub fn main() -> iced::Result {
     iced::run("Title", App::update, App::view)
@@ -35,7 +35,7 @@ struct App {
     configurable_topics: Vec<Topic>,
     test: Vec<Topic>,
     qna: VecDeque<(String, String, u32)>,
-    total_cards: u32,
+    total_cards: Vec<(u32, u32)>,
     current_topic: Topic,
     expand_questions: bool,
     expand_awnsers: bool,
@@ -58,13 +58,14 @@ struct Flashcard {
     id: u32,
     topics: Vec<Topic>
 }
-// impl Default for Card {
-//     fn default() -> Self {
-//         Self {
-//             color: Color::from_rgb(0.5, 0.5, 0.5),
-//         }
-//     }
-// }
+
+
+
+
+
+
+
+
 
 #[derive(Debug, Default, Clone)]
 enum Popups {
@@ -73,8 +74,8 @@ enum Popups {
     Test,
     ColorPicker,
     Text,
-    StartTest,
-    //UpdateTest,
+    StartTest(VecDeque<(String, String, u32)>),
+    
     Topics,
     Configure,
     #[default]
@@ -95,7 +96,8 @@ enum Message {
     SubmitColor(Color),
     SubmitTopic(Topic),
     SubmitCard(Flashcard),
-    UpdateTest,
+    UpdateTest(VecDeque<(String, String, u32)>),
+    EndTest,
     UpdateTopic,
     SetTopic(String),
     SelectTopic(Topic),
@@ -107,8 +109,8 @@ enum Message {
     ExpandAwnsers,
     Text,
     Topics,
-    // ShowModal,
-    // HideModal,
+    
+    
     Error,
     None
 }
@@ -127,22 +129,111 @@ impl App {
                 self.update(Message::UpdateTopic);
                
             },
-            Message::StartTest => {
-                for topic in self.test.iter() {
-                    for (question, answer, id) in topic.qna.iter() {
-                        // Check if the card with the same question and the same topic ID exists
-                       // if self.submitted_cards.iter().any(|card| card.id == *id) {
-                            if !self.qna.iter().any(|card| card.0 == *question && card.2 == topic.id) {
-                                if self.qna.len() < self.total_cards as usize {
-                                    self.qna.push_back((question.clone(), answer.clone(), *id));
+                               
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        Message::StartTest => {
+                            
+                            self.qna.clear(); 
+                            for topic in &self.test {
+                                for (question, answer, id) in &topic.qna {
+                                    
+                                    if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == *id) {
+                                        if self.qna.len() < max_size as usize && !self.qna.iter().any(|(q, _, t_id)| q == question && *t_id == topic.id) {
+                                            self.qna.push_back((question.clone(), answer.clone(), *id));
+                                        }
+                                    }
                                 }
                             }
-                        //}
-                    }
-                }
-                self.show_modal = Popups::StartTest;
+                        
+                            
+                            self.show_modal = Popups::StartTest(self.qna.clone());
+                        },
+                        
+                        Message::SelectTopic(sent_topic) => {
+                            if let Some(topic) = self.topics.iter_mut().find(|t| t.id == sent_topic.id) {
+                                let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+                        
+                                
+                                if is_selected {
+                                    self.current_card.topics.retain(|t| t.id != sent_topic.id);
+                                    topic.color = Some(Color::BLACK);
+                                } else {
+                                    self.current_card.id = sent_topic.id;
+                                    self.current_card.topics.push(sent_topic);
+                                    topic.color = Some(Color::WHITE);
+                                }
+                            }
+                        },
+                        
+                        Message::SelectTest(sent_topic) => {
+                            if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
+                                let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+                        
+                                
+                                if is_selected {
+                                    self.test.retain(|t| t.id != sent_topic.id);
+                                    self.unsubmitted_cards
+                                        .extend(self.submitted_cards.iter().filter(|c| c.id == sent_topic.id).cloned());
+                                    self.submitted_cards.retain(|c| c.id != sent_topic.id);
+                                    topic.color = Some(Color::BLACK);
+                                } else {
+                                    
+                                    let card = (self.current_card.question.clone(), self.current_card.awnser.clone(), self.current_card.id);
+                                    topic.qna.push(card);
+                        
+                                    
+                                    let matching_cards: Vec<_> = self.unsubmitted_cards
+                                        .iter()
+                                        .filter(|c| c.id == sent_topic.id)
+                                        .cloned()
+                                        .collect();
+                                    self.submitted_cards.extend(matching_cards);
+                                    self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
+                        
+                                    self.test.push(topic.clone());
+                                    topic.color = Some(Color::WHITE);
+                                }
+                            }
+                        },
+                        
+                        Message::SubmitCard(card) => {
+                            
+                            if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
+                                *count += 1;
+                            } else {
+                                self.total_cards.push((card.id, 1));
+                            }
+                        
+                            
+                            self.submitted_cards.push(card);
+                        },
+                        
+            Message::AwnserChanged(content) => {
+                self.current_card.awnser = content;
+                self.update(Message::UpdateTopic);
             },
-            
+            Message::ExpandQuestions => {
+                self.expand_questions =  !self.expand_questions;
+            },
+            Message::ExpandAwnsers => {
+                self.expand_awnsers =  !self.expand_awnsers;
+            },
+            Message::Error => todo!(),
+            Message::EndTest => {
+                
+                
+                
+
+                self.update(Message::NoPopup)
+            },
             Message::Debug(_) => {},
             Message::Test => {
                 self.show_modal = Popups::Test;
@@ -170,7 +261,7 @@ impl App {
                     question: self.current_card.question.clone(),
                     awnser: self.current_card.awnser.clone(),
                     topics: self.current_card.topics.clone(),
-                    //id: self.current_topic.id,
+                    
                     ..Default::default()
                 }
             },
@@ -181,86 +272,18 @@ impl App {
                 self.show_modal = Popups::Topics;
             },
             Message::SubmitTopic(mut topic, ) => {
+                
                     self.topics.push(topic.clone());
                     self.configurable_topics.push(topic);
             },
             Message::SetTopic(content) => {
                 self.current_topic = Topic { content, qna: self.current_topic.qna.clone(), ..Default::default() };
             },
-            Message::SelectTopic(sent_topic) => {
-                if let Some(topic) = self.topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
-                    let mut final_color = Color::WHITE;
-                    
-                    if sent_topic.color.unwrap() == Color::WHITE {
-                        self.current_card.topics.retain(|v| v.id != sent_topic.id);
-                        final_color = Color::BLACK;
-                    } else {
-                        self.current_card.id = sent_topic.id;
-                        self.current_card.topics.push(sent_topic);
-                        final_color = Color::WHITE;
-                    }
-                    *topic = Topic { content: topic.content.clone(), color: Some(final_color), id: topic.id, qna: self.current_topic.qna.clone() }
-                }
-            }
-            Message::AwnserChanged(content) => {
-                self.current_card.awnser = content;
-                self.update(Message::UpdateTopic);
-            },
-            Message::ExpandQuestions => {
-                self.expand_questions =  !self.expand_questions;
-            },
-            Message::ExpandAwnsers => {
-                self.expand_awnsers =  !self.expand_awnsers;
-            },
-            Message::Error => todo!(),
-            Message::SelectTest(mut sent_topic) => {   
-                if let Some(topic) = self.configurable_topics.iter_mut().find(|topic| topic.id == sent_topic.id) {
-                    let mut final_color = Color::WHITE;
-                    if sent_topic.color.unwrap() == Color::WHITE {
-                        self.test.retain(|v| v.id != sent_topic.id);
-                        self.submitted_cards
-                            .iter()
-                            .filter(|card| card.id == sent_topic.id)
-                            .for_each(|card| self.unsubmitted_cards.push(card.clone()));
-                        self.submitted_cards.retain(|card| card.id != sent_topic.id);
-                        final_color = Color::BLACK;
-                    } else {
-                        sent_topic.qna.push((self.current_card.question.clone(), self.current_card.awnser.clone(), self.current_card.id));
-                        let matching_cards: Vec<_> = self.unsubmitted_cards
-                            .iter()
-                            .filter(|card| card.id == sent_topic.id)
-                            .cloned()
-                            .collect();
-                        self.submitted_cards.extend(
-                            matching_cards
-                        );
-                        self.unsubmitted_cards.retain(|card| card.id != sent_topic.id);
-                        // self.submitted_cards = self.submitted_cards.iter().filter_map(|card|  
-                        //     Some(Flashcard { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), bg_color: self.current_card.bg_color, header: self.current_card.header.clone(), footer: self.current_card.footer.clone(), topics: self.current_card.topics.clone() })
-                        // ).collect();
-                        //self.submitted_cards.push(Flashcard { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), bg_color: self.current_card.bg_color, header: self.current_card.header.clone(), footer: self.current_card.footer.clone(), topics: self.current_card.topics.clone() });
-                        //self.submitted_cards.push((card.question.clone(), card.awnser.clone()));
-                        self.test.push(sent_topic.clone());
-                        final_color = Color::WHITE;
-                    }
-                    *topic = Topic { 
-                        content: topic.content.clone(), 
-                        color: Some(final_color), 
-                        id: topic.id, 
-                        qna: topic.qna.clone(),
-                    };
-                }
+
             
-               
-            },
-            
-            Message::SubmitCard(mut card) => {    
-                self.total_cards += 1;
-                self.submitted_cards.push(card);
-            }
-            Message::UpdateTest => {
+            Message::UpdateTest(qna) => {
                 self.qna.pop_front();
-                self.show_modal = Popups::StartTest;
+                self.show_modal = Popups::StartTest(qna);
             },
             Message::UpdateTopic => {
                 for topic in self.test.iter_mut() {
@@ -274,6 +297,7 @@ impl App {
                 }
                 
             },
+            
         }
     }
     fn view(&self) -> Container<Message> { 
@@ -284,9 +308,9 @@ impl App {
             ..Default::default()
         };
 
-        // if self.current_card.bg_color.is_none(){
-        //     self.current_card.bg_color = Some(Background::Color(Color::from_rgb8(43, 43, 43)))
-        // }
+        
+        
+        
     
         let menu1 = MenuButton::new("Nested Menus", button_style);
         let menu_bar = menu_bar!(  
@@ -303,7 +327,7 @@ impl App {
         ); 
         
         let header1: Element<'_, Message, Theme, Renderer> = Rectangle::new(1000.0, 30.0).style(Color::from_rgb8(81, 80, 80)).into();
-        // let header2: Element<'_, Message, Theme, Renderer> = Rectangle::new(1000.0, 50.0).style(Color::WHITE).into();
+        
         let mut awnser_column: Vec<Element<Message, Theme, Renderer>> = vec![
             Button::new("Expand awnsers").on_press(Message::ExpandAwnsers).into()
         ];
@@ -367,7 +391,7 @@ impl App {
                             Space::new(7.5, 0.0),
                             container(
                                 column!(
-                                        // Space::new(Length::Fixed(0.0), Length::Fixed(50.0)),
+                                        
                                         Button::new("Text")
                                             .style(|_theme: &Theme, _status| {
                                                 iced::widget::button::Style {
@@ -493,7 +517,7 @@ impl App {
         .border_radius(20.0)
         .into();
 
-        match self.show_modal {
+        match &self.show_modal {
             
             Popups::Flashcards => {
                 let Rect: Element<'_, Message, Theme, Renderer> = Rectangle::new(200.0, 200.0)
@@ -532,106 +556,78 @@ impl App {
                     )
                 )
             },
-            Popups::StartTest => {
-                let mut display_sidecards = vec![];
-                let local_qna = self.qna.clone();
-                for (question, answer, id) in &local_qna {
+            Popups::StartTest(local_qna) => {
+                let mut display_sidecards: Vec<iced::Element<'_, Message>> = vec![];
+            
+                for (question, answer, id) in local_qna {
                     if self.submitted_cards.iter().any(|card| card.id == *id) {
-                        display_sidecards.push(
-                            container(Text::new(question.clone()))
-                                .width(110)
-                                .height(50)
-                                .style(move |_: &iced::Theme| iced::widget::container::Style {
-                                    background: Some(Background::Color(Color::WHITE)),
-                                    ..Default::default()
-                                })
-                                .into(),
-                        );
-                    };
+                        let element: iced::Element<'_, Message> = Container::new(Text::new(question.clone()))
+                            .width(110)
+                            .height(50)
+                            .style(|_: &iced::Theme| iced::widget::container::Style {
+                                background: Some(iced::Background::Color(iced::Color::WHITE)),
+                                ..Default::default()
+                            })
+                            .into();
+            
+                        display_sidecards.push(element);
+                    }
                 }
-                drop(local_qna);
-                
-
-                let content = if let Some((question, _, _)) = self.qna.front() {
-                    Text::new(question.clone())
+            
+                let content: iced::Element<'_, Message> = if let Some((question, _, _)) = self.qna.front() {
+                    Text::new(question.clone()).into()
                 } else {
-                    Text::new("Finished")
+                    Text::new("Finished").into()
                 };
-        
-                container(
-                    modal(
-                        main_container,
-                        container(stack![
-                            background_rect,
-                            column!(
-                                //topic_scrollbar(self),
-                                Space::new(0, 20),
-                                container(
-                                    row!(
-                                        Space::new(5, 0),
-                                        container(
-                                            row!(
-                                                Space::new(20.0, 0.0),
-                                                Scrollable::new(
-                                                    column!(
-                                                        Space::new(0.0, 20.0),
-                                                        Column::with_children(display_sidecards)
-                                                    )
-                                                )
-                                            ),
-                                        )
-                                        .width(150)
-                                        .height(250)
-                                        .style(move |_: &iced::Theme| iced::widget::container::Style {
-                                            background: Some(Background::Color(Color::BLACK)),
-                                            ..Default::default()
-                                        }), 
-                                        Space::new(5, 0),
-                                        container(
-                                            container(
-                                                column!(
-                                                    content,
-                                                    Button::new("Next").on_press(Message::UpdateTest)
-                                                )
-                                                //card()
-                                            )
-                                            .width(250)
-                                            .height(150)
-                                            //.center(30)
-                                            .style(move |_: &iced::Theme| iced::widget::container::Style {
-                                                background: Some(Background::Color(Color::WHITE)),
-                                                ..Default::default()
-                                            }),
-                                            // row!(
-                                            //     Space::new(100.0, 0.0),
-                                            //         column!(
-                                            //             Space::new(0.0, 20.0),
-                                            //             container(
-                                            //                 "Test"
-                                            //                 //card()
-                                            //             ).style(move |_: &iced::Theme| iced::widget::container::Style {
-                                            //                 background: Some(Background::Color(Color::WHITE)),
-                                            //                 ..Default::default()
-                                            //             }),
-                                            //         )
-                                            // )
-                                        )
-                                        .center(Length::Fill)
-                                        .width(500)
-                                        .height(250)
-                                        .style(move |_: &iced::Theme| iced::widget::container::Style {
-                                            background: Some(Background::Color(Color::BLACK)),
-                                            ..Default::default()
-                                        })
+            
+                let main_column = column!(
+                    container(
+                        row!(
+                            Space::new(5, 0),
+                            container(
+                                row!(
+                                    Space::new(20.0, 0.0),
+                                    Scrollable::new(
+                                        Column::with_children(display_sidecards) 
                                     )
-                                ),
-                                container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
+                                )
                             )
-                        ]),
-                        Message::None
-                    )
-                )
-            },
+                            .width(150)
+                            .height(250)
+                            .style(|_: &iced::Theme| iced::widget::container::Style {
+                                background: Some(iced::Background::Color(iced::Color::BLACK)),
+                                ..Default::default()
+                            }),
+                            Space::new(5, 0),
+                            container(
+                                container(
+                                    column!(
+                                        content,
+                                        Button::new("Next").on_press(Message::UpdateTest(local_qna.clone())) 
+                                    )
+                                )
+                                .width(250)
+                                .height(150)
+                                .style(|_: &iced::Theme| iced::widget::container::Style {
+                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
+                                    ..Default::default()
+                                }),
+                            )
+                            .center(Length::Fill)
+                            .width(500)
+                            .height(250)
+                            .style(|_: &iced::Theme| iced::widget::container::Style {
+                                background: Some(iced::Background::Color(iced::Color::BLACK)),
+                                ..Default::default()
+                            })
+                        )
+                    ),
+                    container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
+                );
+            
+                container(modal(main_container, main_column, Message::None))
+            }
+            
             Popups::Configure => {
                 container(
                     modal(
@@ -656,7 +652,7 @@ impl App {
                             background_rect,
                             row!(
                                 Pin::new(
-                                    // row!(
+                                    
                                         color_picker(
                                             true,
                                             Color::BLACK,
@@ -665,7 +661,7 @@ impl App {
                                             Message::SubmitColor,
                                         ),
                                     
-                                // ) Button::new("Exit").on_press(Message::NoPopup)
+                                
                                 )
                                 .x(280)
                                 .y(150),
@@ -692,7 +688,7 @@ impl App {
                                     .center_x(Length::Fill)
                                     ,
                                     Space::new(0.0, 20.0),
-                                    // Pin::new(
+                                    
                                         container(
                                             text_input("Type your question here..", &self.current_card.question)
                                                 .on_input(Message::QuestionChanged)
@@ -700,9 +696,9 @@ impl App {
                                         )
                                         .center_x(Length::Fill)
                                         ,
-                                    // )           
-                                    // .x(280)
-                                    // .y(150),
+                                    
+                                    
+                                    
                                     Space::new(0.0, 20.0),
                                     container(
                                         text_input("Type your awnser here..", &self.current_card.awnser)
@@ -715,8 +711,8 @@ impl App {
                                         row!(
                                             Button::new("Exit")
                                             .on_press(Message::NoPopup),
-                                            // Button::new("Submit")
-                                            // .on_press(Message::SubmitText(self.current_card))
+                                            
+                                            
                                         )
                                     )
                                     .center_x(Length::Fill)
@@ -734,13 +730,13 @@ impl App {
                         main_container,
                         stack![
                             background_rect,
-                            // row!(
-                            // Space::new(200.0, 0.0),
-                            // container(
-                            //row!(
+                            
+                            
+                            
+                            
                             column!(
                                 row!(
-                                //   Space::new(100.0, 0.0),
+                                
                                     row!(
                                         Space::new(100.0, 0.0),
                                         column!(
@@ -752,8 +748,8 @@ impl App {
                                                 .on_input(Message::SetTopic),
                                                 )
                                             )
-                                            // .center_x(Length::Fill)
-                                            // .center_y(Length::Fill)
+                                            
+                                            
                                             .height(150.0)
                                             .width(120.0)
                                             .padding(10.0)
@@ -763,27 +759,27 @@ impl App {
                                             }),
                                         ),
                                     ),
-                                    // Space::new(10.0, 0.0),
-                                    //Pin::new(
+                                    
+                                    
                                     topic_scrollbar(self).center_y(Length::Fill),
-                                            //Space::new(0, 50)
-                                    //).y(0),
+                                            
+                                    
                                     Space::new(60.0, 0.0),
                             ),
-                            //Space::new(0.0, 0.0),
+                            
                             container(
                                 Button::new("Exit").on_press(Message::NoPopup)
                             ).center_x(Length::Fill)
                         ),
-                       // )
-                       // ).max_width(100),
-                       // )
+                       
+                       
+                       
                         ],
                         Message::None
                     )
                 )
             },
-            //Popups::UpdateTest => todo!(),
+            
         }
     }
     
@@ -813,7 +809,7 @@ impl MenuButton {
     }
 
     fn debug_button_s(self) -> button::Button<'static, Message, iced::Theme, iced::Renderer> {
-        let label = self.main_label; // No clone needed since &'static str is Copy
+        let label = self.main_label; 
         Self::labeled_button(self, label.to_string(), Message::Debug(label.to_string())).width(Length::Shrink)
     }
 
@@ -824,24 +820,24 @@ impl MenuButton {
             .on_press(msg)
     }
 }
-// if invert_colors {
-//     if final_color == Color::WHITE {
-//         final_color == Color::BLACK;
-//     } else {
-//         final_color == Color::WHITE;
-//     }
-// }
+
+
+
+
+
+
+
 
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
-    //let mut invert_colors = false;
+    
     let item_arr =  match app.show_modal {
         Popups::Topics => {
-            // invert_colors = true;
+            
             app.topics.clone()
         }
         Popups::Configure => {
-            //invert_colors = true;
+            
             app.configurable_topics.clone()
         }
         Popups::Test => {
@@ -883,10 +879,10 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                             .on_press(
                                 match app.show_modal {
                                     Popups::Configure => {
-                                        // let mut color = Some(Color::BLACK);
-                                        // if topic.color.unwrap() == Color::BLACK {
-                                        //     color = Some(Color::WHITE)
-                                        // }
+                                        
+                                        
+                                        
+                                        
                                         Message::SelectTest(topic.clone())
                                     }
                                     Popups::Topics => {
@@ -896,11 +892,11 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                                         Message::None
                                     }
                                 }
-                                // if true {
-                                //     Message::SelectTopic(topic.clone())
-                                // } else {
-                                //     Message::SelectTopic(topic.clone())
-                                // }
+                                
+                                
+                                
+                                
+                                
                             )
                         )
                         .center(Length::Fill)
@@ -935,7 +931,7 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                 },
                 gap:  Some(Background::Color(Color::BLACK))
             })
-            //.spacing(100.0)
+            
             .direction(scrollable::Direction::Horizontal(
                 scrollable::Scrollbar::new()
             ))
