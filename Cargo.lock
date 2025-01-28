@@ -1000,7 +1000,6 @@ version = "0.1.0"
 dependencies = [
  "iced",
  "iced_aw",
- "iced_shapes",
 ]
 
 [[package]]
@@ -1539,13 +1538,6 @@ dependencies = [
  "iced_futures",
  "raw-window-handle",
  "thiserror",
-]
-
-[[package]]
-name = "iced_shapes"
-version = "0.1.0"
-dependencies = [
- "iced",
 ]
 
 [[package]]

@@ -4,14 +4,15 @@
 use std::collections::{VecDeque};
 
 use iced::{advanced::{graphics::{core::Element, futures::backend::default}, Widget}, alignment, widget::{self, button, center, container, mouse_area, opaque, row, scrollable::{self, Rail, Scroller}, stack, text, text_input, Button, Column, Container, Row, Scrollable, Space, Text}, Alignment, Background, Border, Color, Length, Renderer, Settings, Shadow, Size, Task, Theme};
-use iced_shapes::{circle::Circle, rectangle::Rectangle};
+//use iced_shapes::{circle::Circle, rectangle::Rectangle};
 use iced_aw::{card, color_picker, menu::{self, Item, Menu}, menu_bar, style};
 use iced_aw::menu_items;
 use iced::widget::column;
 
+mod rectangle;
 mod pin;
 
-
+use rectangle::rectangle::Rectangle;
 use pin::Pin;
 
 

@@ -1,4 +1,0 @@
-[submodule "iced_shapes"]
-    path = iced_shapes
-    url = https://github.com/SpiderUnderUrBed/iced_shapes
-    branch = master
