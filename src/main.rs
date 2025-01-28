@@ -34,7 +34,7 @@ struct App {
     topics: Vec<Topic>,
     configurable_topics: Vec<Topic>,
     test: Vec<Topic>,
-    qna: VecDeque<(String, String, u32)>,
+    qna: VecDeque<QNA>,
     total_cards: Vec<(u32, u32)>,
     current_topic: Topic,
     expand_questions: bool,
@@ -44,7 +44,7 @@ struct App {
 struct Topic {
     content: String,
     color: Option<Color>,
-    qna: Vec<(String, String, u32)>,
+    qna: Vec<QNA>,
     id: u32,
 }
 
@@ -59,14 +59,6 @@ struct Flashcard {
     topics: Vec<Topic>
 }
 
-
-
-
-
-
-
-
-
 #[derive(Debug, Default, Clone)]
 enum Popups {
     Flashcards,
@@ -74,12 +66,18 @@ enum Popups {
     Test,
     ColorPicker,
     Text,
-    StartTest(VecDeque<(String, String, u32)>),
-    
+    StartTest(VecDeque<QNA>),
     Topics,
     Configure,
     #[default]
     None
+}
+
+#[derive(Debug, Clone)]
+struct QNA {
+    question: String,
+    awnser: String,
+    id: u32
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +94,7 @@ enum Message {
     SubmitColor(Color),
     SubmitTopic(Topic),
     SubmitCard(Flashcard),
-    UpdateTest(VecDeque<(String, String, u32)>),
+    UpdateTest(VecDeque<QNA>),
     EndTest,
     UpdateTopic,
     SetTopic(String),
@@ -129,26 +127,18 @@ impl App {
                 self.update(Message::UpdateTopic);
                
             },
-                               
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
                         Message::StartTest => {
                             dbg!(&self.test);
                             
                             self.qna.clear(); 
                             for topic in &self.test {
-                                for (question, answer, id) in &topic.qna {
-                                    
-                                    if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == *id) {
-                                        if self.qna.len() < max_size as usize && !self.qna.iter().any(|(q, _, t_id)| q == question && *t_id == topic.id) {
-                                            self.qna.push_back((question.clone(), answer.clone(), *id));
+                                for qna in &topic.qna {
+                                    let question = qna.question.clone();
+                                    let awnser = qna.awnser.clone();
+                                    let id = qna.id;
+                                    if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == id) {
+                                        if self.qna.len() < max_size as usize && !self.qna.iter().any(|qna| qna.question == question && qna.id == topic.id) {
+                                            self.qna.push_back(QNA { question: question.clone(), awnser: awnser.clone(), id: id.clone()});
                                         }
                                     }
                                 }
@@ -188,7 +178,7 @@ impl App {
                                     topic.color = Some(Color::BLACK);
                                 } else {
                                     
-                                    let card = (self.current_card.question.clone(), self.current_card.awnser.clone(), self.current_card.id);
+                                    let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
                                     topic.qna.push(card);
                         
                                     
@@ -290,11 +280,13 @@ impl App {
             Message::UpdateTopic => {
                 for topic in self.test.iter_mut() {
                     if let Some(_) = topic.qna.pop() {
-                        topic.qna.push((
-                            self.current_card.question.clone(),
-                            self.current_card.awnser.clone(),
-                            self.current_card.id
-                        ));
+                        topic.qna.push(
+                            QNA {
+                            question: self.current_card.question.clone(),
+                            awnser: self.current_card.awnser.clone(),
+                            id: self.current_card.id
+                        }
+                    );
                     }
                 }
                 
@@ -561,8 +553,11 @@ impl App {
             Popups::StartTest(local_qna) => {
                 let mut display_sidecards: Vec<iced::Element<'_, Message>> = vec![];
             
-                for (question, answer, id) in local_qna {
-                    if self.submitted_cards.iter().any(|card| card.id == *id) {
+                for qna in local_qna {
+                    let id = qna.id;
+                    let question = qna.question.clone();
+                    let awnser = qna.awnser.clone();
+                    if self.submitted_cards.iter().any(|card| card.id == id) {
                         let element: iced::Element<'_, Message> = Container::new(Text::new(question.clone()))
                             .width(110)
                             .height(50)
@@ -576,7 +571,8 @@ impl App {
                     }
                 }
             
-                let content: iced::Element<'_, Message> = if let Some((question, _, _)) = self.qna.front() {
+                let content: iced::Element<'_, Message> = if let Some(qna) = self.qna.front() {
+                    let question = qna.question.clone();
                     Text::new(question.clone()).into()
                 } else {
                     Text::new("Finished").into()
