@@ -113,6 +113,67 @@ enum Message {
     Error,
     None
 }
+// for topic in &self.test {
+//     for qna in &topic.qna {
+//         let question = qna.question.clone();
+//         let awnser = qna.awnser.clone();
+//         let id = qna.id;
+//         if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == id) {
+//             if self.qna.len() < max_size as usize && !self.qna.iter().any(|qna| qna.question == question && qna.id == topic.id) {
+//                 self.qna.push_back(QNA { question: question.clone(), awnser: awnser.clone(), id: id.clone()});
+//             }
+//         }
+//     }
+// }
+// dbg!(sent_topic.clone());
+// if let Some(topic) = self.topics.iter_mut().find(|t| t.id == sent_topic.id) {
+//     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+
+    
+//     if is_selected {
+//         self.current_card.topics.retain(|t| t.id != sent_topic.id);
+//         topic.color = Some(Color::BLACK);
+//     } else {
+//         self.current_card.id = sent_topic.id;
+//         self.current_card.topics.push(sent_topic);
+//         topic.color = Some(Color::WHITE);
+//     }
+// }
+
+// if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
+//     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+
+    
+//     if is_selected {
+//         self.test.retain(|t| t.id != sent_topic.id);
+//         self.unsubmitted_cards
+//             .extend(self.submitted_cards.iter().filter(|c| c.id == sent_topic.id).cloned());
+//         self.submitted_cards.retain(|c| c.id != sent_topic.id);
+//         topic.color = Some(Color::BLACK);
+//     } else {
+        
+//         let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
+//         topic.qna.push(card);
+
+        
+//         let matching_cards: Vec<_> = self.unsubmitted_cards
+//             .iter()
+//             .filter(|c| c.id == sent_topic.id)
+//             .cloned()
+//             .collect();
+//         self.submitted_cards.extend(matching_cards);
+//         self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
+
+//         self.test.push(topic.clone());
+//         topic.color = Some(Color::WHITE);
+//     }
+// }
+
+// if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
+//     *count += 1;
+// } else {
+//     self.total_cards.push((card.id, 1));
+// }
 
 impl App {
     fn hide_modal(&mut self) {
