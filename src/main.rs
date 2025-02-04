@@ -14,7 +14,7 @@ mod pin;
 
 use rectangle::rectangle::Rectangle;
 use pin::Pin;
-
+use rand::seq::SliceRandom;
 
 
 
@@ -26,10 +26,24 @@ pub fn main() -> iced::Result {
     iced::run("Title", App::update, App::view)
 }
 
+#[derive(Debug, Default, Clone)]
+enum Popups {
+    Flashcards,
+    Assist,
+    Test,
+    ColorPicker,
+    Text,
+    StartTest(VecDeque<QNA>),
+    Topics,
+    Configure,
+    #[default]
+    None
+}
+
 #[derive(Default)]
 struct App {
     show_modal: Popups,
-    current_test: Option<Test>,
+    current_test: Test,
     current_card: Flashcard,
     // submitted_cards: Vec<Flashcard>,
     // //unsubmitted_cards: Vec<Flashcard>,
@@ -61,19 +75,6 @@ struct Flashcard {
     topics: Vec<Topic>
 }
 
-#[derive(Debug, Default, Clone)]
-enum Popups {
-    Flashcards,
-    Assist,
-    Test,
-    ColorPicker,
-    Text,
-    StartTest(VecDeque<QNA>),
-    Topics,
-    Configure,
-    #[default]
-    None
-}
 
 #[derive(Debug, Clone)]
 struct QNA {
@@ -81,6 +82,46 @@ struct QNA {
     awnser: String,
     id: u32
 }
+#[derive(Default, Debug, Clone)]
+struct Test {
+    selected_topics: Vec<Topic>,
+    questions: VecDeque<QNA>,
+}
+
+impl Test {
+    // Generate a question layout based on selected topics
+    fn get_layout(&mut self) -> VecDeque<QNA> {
+        self.questions.clear();
+        
+        for topic in &self.selected_topics {
+            self.questions.extend(topic.qna.iter().cloned());
+        }
+        
+        self.questions.make_contiguous().shuffle(&mut rand::rng());
+        self.questions.clone()
+    }
+
+    // Add a flashcard's questions to the test
+    fn submit_card_to_test(&mut self, card: Flashcard) {
+        for topic in &card.topics {
+            self.selected_topics.push(topic.clone());
+        }
+    }
+    
+    // Select a topic to test
+    fn select_topic_to_test(&mut self, sent_topic: Topic) {
+        if !self.selected_topics.iter().any(|t| t.id == sent_topic.id) {
+            self.selected_topics.push(sent_topic);
+        }
+    }
+
+    // End the current test
+    fn end_test(&mut self) {
+        self.questions.clear();
+        self.selected_topics.clear();
+    }
+}
+
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -112,85 +153,8 @@ enum Message {
     Error,
     None
 }
-// for topic in &self.test {
-//     for qna in &topic.qna {
-//         let question = qna.question.clone();
-//         let awnser = qna.awnser.clone();
-//         let id = qna.id;
-//         if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == id) {
-//             if self.qna.len() < max_size as usize && !self.qna.iter().any(|qna| qna.question == question && qna.id == topic.id) {
-//                 self.qna.push_back(QNA { question: question.clone(), awnser: awnser.clone(), id: id.clone()});
-//             }
-//         }
-//     }
-// }
-// dbg!(sent_topic.clone());
-// if let Some(topic) = self.topics.iter_mut().find(|t| t.id == sent_topic.id) {
-//     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
 
-    
-//     if is_selected {
-//         self.current_card.topics.retain(|t| t.id != sent_topic.id);
-//         topic.color = Some(Color::BLACK);
-//     } else {
-//         self.current_card.id = sent_topic.id;
-//         self.current_card.topics.push(sent_topic);
-//         topic.color = Some(Color::WHITE);
-//     }
-// }
 
-// if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
-//     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
-
-    
-//     if is_selected {
-//         self.test.retain(|t| t.id != sent_topic.id);
-//         self.unsubmitted_cards
-//             .extend(self.submitted_cards.iter().filter(|c| c.id == sent_topic.id).cloned());
-//         self.submitted_cards.retain(|c| c.id != sent_topic.id);
-//         topic.color = Some(Color::BLACK);
-//     } else {
-        
-//         let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
-//         topic.qna.push(card);
-
-        
-//         let matching_cards: Vec<_> = self.unsubmitted_cards
-//             .iter()
-//             .filter(|c| c.id == sent_topic.id)
-//             .cloned()
-//             .collect();
-//         self.submitted_cards.extend(matching_cards);
-//         self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
-
-//         self.test.push(topic.clone());
-//         topic.color = Some(Color::WHITE);
-//     }
-// }
-
-// if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
-//     *count += 1;
-// } else {
-//     self.total_cards.push((card.id, 1));
-// }
-#[derive(Default, Debug, Clone)]
-struct Test {}
-
-impl Test {
-    fn get_layout(self) -> VecDeque<QNA> {
-        todo!()
-    }
-    // fn set_layout(sent_topic: Topic){
-
-    // }
-    fn submit_card_to_test(self, card: Flashcard){
-
-    }
-    fn select_topic_to_test(self, sent_topic: Topic){
-
-    }
-
-}
 
 impl App {
     fn hide_modal(&mut self) {
@@ -207,7 +171,8 @@ impl App {
                
             },
                         Message::StartTest => {       
-                            let questions = self.current_test.clone().unwrap().get_layout();
+                            //self.current_test = Test {};
+                            let questions = self.current_test.clone().get_layout();
                             
                             self.show_modal = Popups::StartTest(questions.clone());
                         },
@@ -230,45 +195,15 @@ impl App {
                         },
                         
                         Message::SelectTest(sent_topic) => {
-                            self.current_test.clone().unwrap().select_topic_to_test(sent_topic);
-                            // if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
-                            //     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
-                        
-                                
-                            //     if is_selected {
-                            //         self.test.retain(|t| t.id != sent_topic.id);
-                            //      //   self.submitted_cards.retain(|c| c.id != sent_topic.id);
-                            //         topic.color = Some(Color::BLACK);
-                            //     } else {
-                                    
-                            //         let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
-                            //         topic.qna.push(card);
-                        
-                                    
-                            //         // let matching_cards: Vec<_> = self.unsubmitted_cards
-                            //         //     .iter()
-                            //         //     .filter(|c| c.id == sent_topic.id)
-                            //         //     .cloned()
-                            //         //     .collect();
-                            //         // self.submitted_cards.extend(matching_cards);
-                            //         // self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
-                        
-                            //         self.test.push(topic.clone());
-                            //         topic.color = Some(Color::WHITE);
-                            //     }
-                            // }
+                            self.current_test.clone().select_topic_to_test(sent_topic);
                         },
                         
                         Message::SubmitCard(card) => {
-                            self.current_test.clone().unwrap().submit_card_to_test(card);
-                            // if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
-                            //     *count += 1;
-                            // } else {
-                            //     self.total_cards.push((card.id, 1));
-                            // }
-                        
-                            
-                            // self.submitted_cards.push(card);
+                            self.current_test.clone().submit_card_to_test(card);
+                        },
+                        Message::EndTest => {
+                            self.current_test.clone().end_test();
+                            self.update(Message::NoPopup)
                         },
                         
             Message::AwnserChanged(content) => {
@@ -282,9 +217,6 @@ impl App {
                 self.expand_awnsers =  !self.expand_awnsers;
             },
             Message::Error => todo!(),
-            Message::EndTest => {
-                self.update(Message::NoPopup)
-            },
             Message::Debug(_) => {},
             Message::Test => {
                 self.show_modal = Popups::Test;
@@ -602,7 +534,7 @@ impl App {
                                 Space::new(0.0, 20.0),
                                 container(Button::new("Start test").on_press(Message::StartTest)).center_x(Length::Fill),
                                 Space::new(0.0, 20.0),
-                                container(Button::new("Exit").on_press(Message::NoPopup)).center_x(Length::Fill)
+                                container(Button::new("Exit").on_press(Message::EndTest)).center_x(Length::Fill)
                             )
                         ]),
                         Message::None
