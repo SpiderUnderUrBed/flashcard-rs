@@ -29,9 +29,10 @@ pub fn main() -> iced::Result {
 #[derive(Default)]
 struct App {
     show_modal: Popups,
+    current_test: Option<Test>,
     current_card: Flashcard,
-    submitted_cards: Vec<Flashcard>,
-    unsubmitted_cards: Vec<Flashcard>,
+    // submitted_cards: Vec<Flashcard>,
+    // //unsubmitted_cards: Vec<Flashcard>,
     topics: Vec<Topic>,
     configurable_topics: Vec<Topic>,
     test: Vec<Topic>,
@@ -107,9 +108,7 @@ enum Message {
     ExpandQuestions,
     ExpandAwnsers,
     Text,
-    Topics,
-    
-    
+    Topics,    
     Error,
     None
 }
@@ -174,6 +173,24 @@ enum Message {
 // } else {
 //     self.total_cards.push((card.id, 1));
 // }
+#[derive(Default, Debug, Clone)]
+struct Test {}
+
+impl Test {
+    fn get_layout(self) -> VecDeque<QNA> {
+        todo!()
+    }
+    // fn set_layout(sent_topic: Topic){
+
+    // }
+    fn submit_card_to_test(self, card: Flashcard){
+
+    }
+    fn select_topic_to_test(self, sent_topic: Topic){
+
+    }
+
+}
 
 impl App {
     fn hide_modal(&mut self) {
@@ -189,25 +206,10 @@ impl App {
                 self.update(Message::UpdateTopic);
                
             },
-                        Message::StartTest => {
-                            dbg!(&self.test);
+                        Message::StartTest => {       
+                            let questions = self.current_test.clone().unwrap().get_layout();
                             
-                            self.qna.clear(); 
-                            for topic in &self.test {
-                                for qna in &topic.qna {
-                                    let question = qna.question.clone();
-                                    let awnser = qna.awnser.clone();
-                                    let id = qna.id;
-                                    if let Some(&(_, max_size)) = self.total_cards.iter().find(|(card_id, _)| *card_id == id) {
-                                        if self.qna.len() < max_size as usize && !self.qna.iter().any(|qna| qna.question == question && qna.id == topic.id) {
-                                            self.qna.push_back(QNA { question: question.clone(), awnser: awnser.clone(), id: id.clone()});
-                                        }
-                                    }
-                                }
-                            }
-                        
-                            
-                            self.show_modal = Popups::StartTest(self.qna.clone());
+                            self.show_modal = Popups::StartTest(questions.clone());
                         },
                         
                         Message::SelectTopic(sent_topic) => {
@@ -228,46 +230,45 @@ impl App {
                         },
                         
                         Message::SelectTest(sent_topic) => {
-                            if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
-                                let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+                            self.current_test.clone().unwrap().select_topic_to_test(sent_topic);
+                            // if let Some(topic) = self.configurable_topics.iter_mut().find(|t| t.id == sent_topic.id) {
+                            //     let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
                         
                                 
-                                if is_selected {
-                                    self.test.retain(|t| t.id != sent_topic.id);
-                                    self.unsubmitted_cards
-                                        .extend(self.submitted_cards.iter().filter(|c| c.id == sent_topic.id).cloned());
-                                    self.submitted_cards.retain(|c| c.id != sent_topic.id);
-                                    topic.color = Some(Color::BLACK);
-                                } else {
+                            //     if is_selected {
+                            //         self.test.retain(|t| t.id != sent_topic.id);
+                            //      //   self.submitted_cards.retain(|c| c.id != sent_topic.id);
+                            //         topic.color = Some(Color::BLACK);
+                            //     } else {
                                     
-                                    let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
-                                    topic.qna.push(card);
+                            //         let card = QNA { question: self.current_card.question.clone(), awnser: self.current_card.awnser.clone(), id: self.current_card.id };
+                            //         topic.qna.push(card);
                         
                                     
-                                    let matching_cards: Vec<_> = self.unsubmitted_cards
-                                        .iter()
-                                        .filter(|c| c.id == sent_topic.id)
-                                        .cloned()
-                                        .collect();
-                                    self.submitted_cards.extend(matching_cards);
-                                    self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
+                            //         // let matching_cards: Vec<_> = self.unsubmitted_cards
+                            //         //     .iter()
+                            //         //     .filter(|c| c.id == sent_topic.id)
+                            //         //     .cloned()
+                            //         //     .collect();
+                            //         // self.submitted_cards.extend(matching_cards);
+                            //         // self.unsubmitted_cards.retain(|c| c.id != sent_topic.id);
                         
-                                    self.test.push(topic.clone());
-                                    topic.color = Some(Color::WHITE);
-                                }
-                            }
+                            //         self.test.push(topic.clone());
+                            //         topic.color = Some(Color::WHITE);
+                            //     }
+                            // }
                         },
                         
                         Message::SubmitCard(card) => {
-                            
-                            if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
-                                *count += 1;
-                            } else {
-                                self.total_cards.push((card.id, 1));
-                            }
+                            self.current_test.clone().unwrap().submit_card_to_test(card);
+                            // if let Some((_, count)) = self.total_cards.iter_mut().find(|(id, _)| *id == card.id) {
+                            //     *count += 1;
+                            // } else {
+                            //     self.total_cards.push((card.id, 1));
+                            // }
                         
                             
-                            self.submitted_cards.push(card);
+                            // self.submitted_cards.push(card);
                         },
                         
             Message::AwnserChanged(content) => {
@@ -282,10 +283,6 @@ impl App {
             },
             Message::Error => todo!(),
             Message::EndTest => {
-                
-                
-                
-
                 self.update(Message::NoPopup)
             },
             Message::Debug(_) => {},
@@ -619,7 +616,7 @@ impl App {
                     let id = qna.id;
                     let question = qna.question.clone();
                     let awnser = qna.awnser.clone();
-                    if self.submitted_cards.iter().any(|card| card.id == id) {
+                    // if self.submitted_cards.iter().any(|card| card.id == id) {
                         let element: iced::Element<'_, Message> = Container::new(Text::new(question.clone()))
                             .width(110)
                             .height(50)
@@ -630,7 +627,7 @@ impl App {
                             .into();
             
                         display_sidecards.push(element);
-                    }
+                   // }
                 }
             
                 let content: iced::Element<'_, Message> = if let Some(qna) = self.qna.front() {
@@ -789,11 +786,7 @@ impl App {
                     modal(
                         main_container,
                         stack![
-                            background_rect,
-                            
-                            
-                            
-                            
+                            background_rect,             
                             column!(
                                 row!(
                                 
@@ -839,10 +832,8 @@ impl App {
                     )
                 )
             },
-            
         }
     }
-    
         
 }
 
