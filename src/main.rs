@@ -2,22 +2,15 @@ use std::collections::VecDeque;
 
 use iced::{
     advanced::graphics::core::Element,
-    alignment,
     widget::{
-        button, center, container, mouse_area, opaque, row,
+        center, column, container, mouse_area, opaque, row,
         scrollable::{self, Rail, Scroller},
-        stack, text, text_input, Button, Column, Container, Row, Scrollable, Space, Text,
+        stack, text_input, Button, Column, Container, Row, Scrollable, Space, Text,
     },
     Alignment, Background, Border, Color, Length, Renderer, Theme,
 };
 
-use iced::widget::column;
-use iced_aw::menu_items;
-use iced_aw::{
-    card, color_picker,
-    menu::{Item, Menu},
-    menu_bar, style,
-};
+use iced_aw::{card, color_picker, style};
 
 use slotmap::new_key_type;
 use slotmap::SlotMap;
@@ -27,12 +20,10 @@ mod rectangle;
 mod test_module;
 
 use pin::Pin;
-use rectangle::Rectangle;
+use rectangle::RoundedRectangle;
 
 new_key_type! {
     pub struct TopicKey;
-}
-new_key_type! {
     pub struct QnaKey;
 }
 
@@ -69,7 +60,7 @@ struct App {
     current_topic: Option<TopicKey>,
     staging_topic: String,
     expand_questions: bool,
-    expand_awnsers: bool,
+    expand_answers: bool,
 }
 #[derive(Debug, Clone, Default)]
 struct Topic {
@@ -85,7 +76,7 @@ struct Flashcard {
     header: String,
     footer: String,
     question: String,
-    awnser: String,
+    answer: String,
     id: u32,
     topics: Vec<TopicKey>,
 }
@@ -93,7 +84,7 @@ struct Flashcard {
 #[derive(Debug, Clone, PartialEq)]
 struct QNA {
     question: String,
-    awnser: String,
+    answer: String,
     id: u32,
 }
 
@@ -118,10 +109,10 @@ enum Message {
     SelectTopic(TopicKey),
     SelectTest(TopicKey),
     StartTest,
-    AwnserChanged(String),
+    AnswerChanged(String),
     QuestionChanged(String),
     ExpandQuestions,
-    ExpandAwnsers,
+    ExpandAnswers,
     Text,
     Topics,
     Error,
@@ -192,15 +183,15 @@ impl App {
                 self.update(Message::NoPopup);
             }
 
-            Message::AwnserChanged(content) => {
-                self.current_card.awnser = content;
+            Message::AnswerChanged(content) => {
+                self.current_card.answer = content;
                 self.update(Message::UpdateTopic);
             }
             Message::ExpandQuestions => {
                 self.expand_questions = !self.expand_questions;
             }
-            Message::ExpandAwnsers => {
-                self.expand_awnsers = !self.expand_awnsers;
+            Message::ExpandAnswers => {
+                self.expand_answers = !self.expand_answers;
             }
             Message::Error => todo!(),
             Message::Debug(_) => {}
@@ -220,7 +211,7 @@ impl App {
                 self.current_card = Flashcard {
                     bg_color: Some(Background::Color(color)),
                     question: self.current_card.question.clone(),
-                    awnser: self.current_card.awnser.clone(),
+                    answer: self.current_card.answer.clone(),
                     topics: self.current_card.topics.clone(),
 
                     ..Default::default()
@@ -252,12 +243,12 @@ impl App {
             }
 
             Message::UpdateTopic => {
-                let topics: Vec<&mut Topic> = self.topics.values_mut().collect();
+                let topics = self.topics.values_mut().collect::<Vec<&mut Topic>>();
                 for topic in topics {
                     if topic.qna.pop().is_some() {
                         let new_qna = QNA {
                             question: self.current_card.question.clone(),
-                            awnser: self.current_card.awnser.clone(),
+                            answer: self.current_card.answer.clone(),
                             id: self.current_card.id,
                         };
                         let new_qna_key = self.qna_collection.insert(new_qna);
@@ -268,25 +259,23 @@ impl App {
         }
     }
     fn view(&self) -> Container<Message> {
-        let rect: Element<'_, Message, Theme, Renderer> =
-            Rectangle::new(100.0, 1000.0).style(Color::WHITE).into();
-        let rect2: Element<'_, Message, Theme, Renderer> =
-            Rectangle::new(100.0, 1000.0).style(Color::WHITE).into();
-        let button_style = iced::widget::button::Style {
-            background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-            ..Default::default()
-        };
-
-        let header1: Element<'_, Message, Theme, Renderer> = Rectangle::new(1000.0, 30.0)
-            .style(Color::from_rgb8(81, 80, 80))
+        let rect: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 1000.0)
+            .bg_color(Color::WHITE)
+            .into();
+        let rect2: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 1000.0)
+            .bg_color(Color::WHITE)
             .into();
 
-        let mut awnser_column: Vec<Element<Message, Theme, Renderer>> =
-            vec![Button::new("Expand awnsers")
-                .on_press(Message::ExpandAwnsers)
+        let header1: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(1000.0, 30.0)
+            .bg_color(Color::from_rgb8(81, 80, 80))
+            .into();
+
+        let mut answer_column: Vec<Element<Message, Theme, Renderer>> =
+            vec![Button::new("Expand answers")
+                .on_press(Message::ExpandAnswers)
                 .into()];
-        if self.expand_awnsers {
-            awnser_column.push(Text::new(self.current_card.awnser.clone()).into());
+        if self.expand_answers {
+            answer_column.push(Text::new(self.current_card.answer.clone()).into());
         }
         let mut question_column = vec![Button::new("Expand questions")
             .on_press(Message::ExpandQuestions)
@@ -377,7 +366,7 @@ impl App {
                                 Column::new()
                                     .push(Column::with_children(question_column))
                                     .push(Space::new(0.0, 10.0))
-                                    .push(Column::new().push(Column::with_children(awnser_column)))
+                                    .push(Column::new().push(Column::with_children(answer_column)))
                             )
                             .push(Space::new(0.0, 50))
                     )
@@ -421,15 +410,18 @@ impl App {
         .into();
 
         let main_container = container(row![rect, main_container, rect2]);
-        let background_rect: Element<'_, Message, Theme, Renderer> = Rectangle::new(700.0, 340.0)
-            .style(Color::from_rgb8(81, 80, 80))
-            .border_radius(20.0)
-            .into();
+        let background_rect: Element<'_, Message, Theme, Renderer> =
+            RoundedRectangle::new(700.0, 340.0)
+                .bg_color(Color::from_rgb8(81, 80, 80))
+                .border_radius(20.0)
+                .into();
 
         match &self.show_modal {
             Popups::Flashcards => {
                 let rect: Element<'_, Message, Theme, Renderer> =
-                    Rectangle::new(200.0, 200.0).style(Color::WHITE).into();
+                    RoundedRectangle::new(200.0, 200.0)
+                        .bg_color(Color::WHITE)
+                        .into();
                 container(modal(
                     main_container,
                     container(stack![
@@ -576,8 +568,8 @@ impl App {
                         .center_x(Length::Fill),
                         Space::new(0.0, 20.0),
                         container(
-                            text_input("Type your awnser here..", &self.current_card.awnser)
-                                .on_input(Message::AwnserChanged)
+                            text_input("Type your answer here..", &self.current_card.answer)
+                                .on_input(Message::AnswerChanged)
                         )
                         .center_x(Length::Fill),
                         Space::new(0.0, 20.0),
@@ -671,7 +663,9 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     for (id, topic) in item_arr.iter() {
         let final_color = topic.color.unwrap_or(Color::from_rgb8(0, 0, 0));
         let topic_background: Element<'_, Message, Theme, Renderer> =
-            Rectangle::new(100.0, 80.0).style(final_color).into();
+            RoundedRectangle::new(100.0, 80.0)
+                .bg_color(final_color)
+                .into();
         let button_background = Some(Background::Color(topic.color.unwrap_or(Color::BLACK)));
         let button_text_color = if topic.color.unwrap() == Color::WHITE {
             Color::BLACK
