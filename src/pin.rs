@@ -19,23 +19,18 @@
 //!         .into()
 //! }
 //! ```
-//! 
-use iced::advanced::widget::Operation;
-use iced::advanced::Renderer;
-use iced::advanced::widget::Tree;
+//!
 use iced::advanced::layout;
+use iced::advanced::widget::tree;
+use iced::advanced::widget::Operation;
+use iced::advanced::widget::Tree;
+use iced::advanced::Renderer;
 use iced::mouse;
 use iced::overlay;
 use iced::widget;
-use iced::advanced::widget::tree;
 
-use iced::{
-    self, Element, Event, Length, Pixels, Point, Rectangle,
-    Size, Vector,
-};
-use iced::advanced::{
-    Clipboard, Layout, Widget,Shell
-};
+use iced::advanced::{Clipboard, Layout, Shell, Widget};
+use iced::{self, Element, Event, Length, Pixels, Point, Rectangle, Size, Vector};
 /// A widget that positions its contents at some fixed coordinates inside of its boundaries.
 ///
 /// By default, a [`Pin`] widget will try to fill its parent.
@@ -75,9 +70,7 @@ where
     Renderer: iced::advanced::Renderer,
 {
     /// Creates a [`Pin`] widget with the given content.
-    pub fn new(
-        content: impl Into<Element<'a, Message, Theme, Renderer>>,
-    ) -> Self {
+    pub fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>) -> Self {
         Self {
             content: content.into(),
             width: Length::Fill,
@@ -153,8 +146,7 @@ where
     ) -> layout::Node {
         let limits = limits.width(self.width).height(self.height);
 
-        let available =
-            limits.max() - Size::new(self.position.x, self.position.y);
+        let available = limits.max() - Size::new(self.position.x, self.position.y);
 
         let node = self
             .content
@@ -260,11 +252,11 @@ where
             translation,
         )
     }
-    
+
     fn size_hint(&self) -> Size<Length> {
         self.size()
     }
-    
+
     fn on_event(
         &mut self,
         _state: &mut Tree,
@@ -287,9 +279,7 @@ where
     Theme: 'a,
     Renderer: iced::advanced::Renderer + 'a,
 {
-    fn from(
-        pin: Pin<'a, Message, Theme, Renderer>,
-    ) -> Element<'a, Message, Theme, Renderer> {
+    fn from(pin: Pin<'a, Message, Theme, Renderer>) -> Element<'a, Message, Theme, Renderer> {
         Element::new(pin)
     }
 }
