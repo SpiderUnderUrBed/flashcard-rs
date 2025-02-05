@@ -4,10 +4,13 @@
 use std::collections::{VecDeque};
 
 use iced::{advanced::{graphics::{core::Element, futures::backend::default}, Widget}, alignment, widget::{self, button, center, container, mouse_area, opaque, row, scrollable::{self, Rail, Scroller}, stack, text, text_input, Button, Column, Container, Row, Scrollable, Space, Text}, Alignment, Background, Border, Color, Length, Renderer, Settings, Shadow, Size, Task, Theme};
-//use iced_shapes::{circle::Circle, rectangle::Rectangle};
+
 use iced_aw::{card, color_picker, menu::{self, Item, Menu}, menu_bar, style};
 use iced_aw::menu_items;
 use iced::widget::column;
+
+use slotmap::SlotMap;
+use slotmap::new_key_type;
 
 mod rectangle;
 mod pin;
@@ -17,7 +20,12 @@ use pin::Pin;
 use rand::seq::SliceRandom;
 
 
-
+new_key_type! {
+    pub struct TopicKey;
+}
+new_key_type! {
+    pub struct QnaKey;
+}
 
 
 
@@ -43,25 +51,27 @@ enum Popups {
 #[derive(Default)]
 struct App {
     show_modal: Popups,
-    current_test: Test,
+    current_test: test_module::Test,
     current_card: Flashcard,
-    // submitted_cards: Vec<Flashcard>,
-    // //unsubmitted_cards: Vec<Flashcard>,
-    topics: Vec<Topic>,
-    configurable_topics: Vec<Topic>,
-    test: Vec<Topic>,
-    qna: VecDeque<QNA>,
-    total_cards: Vec<(u32, u32)>,
-    current_topic: Topic,
+
+    test: SlotMap<TopicKey, Topic>,
+    topics: SlotMap<TopicKey, Topic>,
+    configurable_topics: SlotMap<TopicKey, Topic>,
+
+    qna_collection: SlotMap<QnaKey, QNA>,
+
+    current_topic: Option<TopicKey>,
+    staging_topic: String,
     expand_questions: bool,
     expand_awnsers: bool,
 }
 #[derive(Debug, Clone, Default)]
 struct Topic {
+    key: Option<TopicKey>,
     content: String,
     color: Option<Color>,
-    qna: Vec<QNA>,
-    id: u32,
+    qna: Vec<QnaKey>,
+    
 }
 
 #[derive(Default, Debug, Clone)]
@@ -72,56 +82,104 @@ struct Flashcard {
     question: String,
     awnser: String,
     id: u32,
-    topics: Vec<Topic>
+    topics: Vec<TopicKey>
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct QNA {
     question: String,
     awnser: String,
     id: u32
 }
-#[derive(Default, Debug, Clone)]
-struct Test {
-    selected_topics: Vec<Topic>,
-    questions: VecDeque<QNA>,
-}
 
-impl Test {
-    // Generate a question layout based on selected topics
-    fn get_layout(&mut self) -> VecDeque<QNA> {
-        self.questions.clear();
-        
-        for topic in &self.selected_topics {
-            self.questions.extend(topic.qna.iter().cloned());
-        }
-        
-        self.questions.make_contiguous().shuffle(&mut rand::rng());
-        self.questions.clone()
+mod test_module {
+    use super::{Flashcard, QNA, Topic, TopicKey};
+    use std::collections::VecDeque;
+    use slotmap::SlotMap;
+    use super::QnaKey;
+
+    #[derive(Default, Debug, Clone)]
+    pub struct Test {
+        cards: Vec<Flashcard>,
+        pub qna_queue: VecDeque<QNA>,
     }
 
-    // Add a flashcard's questions to the test
-    fn submit_card_to_test(&mut self, card: Flashcard) {
-        for topic in &card.topics {
-            self.selected_topics.push(topic.clone());
+    impl Test {
+        pub fn start_test(&mut self) {
+            println!("Test started!");
         }
+
+        pub fn get_layout(&self) -> VecDeque<QNA> {
+            println!("Current Q&A layout: {:?}", self.qna_queue);
+            self.qna_queue.clone()
+        }
+
+        pub fn submit_card_to_test(&mut self, card: Flashcard) {
+            self.cards.push(card);
+            println!("Card submitted to test.");
+        }
+        
+        pub fn select_topic_to_test(
+            &mut self,
+            topic: &Topic,
+            qna_collection: &SlotMap<QnaKey, QNA>,
+        ) {
+            self.qna_queue = topic
+                .qna
+                .iter()
+                .filter_map(|&qna_key| qna_collection.get(qna_key).cloned())
+                .collect();
+            println!("Selected topic for test: {}", topic.content);
+        }
+
+        pub fn end_test(&mut self) {
+            self.qna_queue.clear();
+            println!("Test ended!");
+        }
+
+        
+
+    }
+
+    
+    pub fn add_qna_to_topic(
+        card: &Flashcard,
+        topic: &mut Topic,
+        qna_collection: &mut SlotMap<QnaKey, QNA>,
+    ) {
+        let new_qna = QNA {
+            question: card.header.clone(),
+            awnser: card.footer.clone(),
+            id: card.id,
+        };
+        let qna_key = qna_collection.insert(new_qna.clone());
+        topic.qna.push(qna_key);
+        println!("QNA added to topic: {}", topic.content);
     }
     
-    // Select a topic to test
-    fn select_topic_to_test(&mut self, sent_topic: Topic) {
-        if !self.selected_topics.iter().any(|t| t.id == sent_topic.id) {
-            self.selected_topics.push(sent_topic);
-        }
-    }
-
-    // End the current test
-    fn end_test(&mut self) {
-        self.questions.clear();
-        self.selected_topics.clear();
-    }
 }
-
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -141,8 +199,8 @@ enum Message {
     EndTest,
     UpdateTopic,
     SetTopic(String),
-    SelectTopic(Topic),
-    SelectTest(Topic),
+    SelectTopic(TopicKey),
+    SelectTest(TopicKey),
     StartTest,
     AwnserChanged(String),
     QuestionChanged(String),
@@ -170,42 +228,62 @@ impl App {
                 self.update(Message::UpdateTopic);
                
             },
-                        Message::StartTest => {       
-                            //self.current_test = Test {};
-                            let questions = self.current_test.clone().get_layout();
-                            
-                            self.show_modal = Popups::StartTest(questions.clone());
-                        },
+            Message::StartTest => {
+                self.current_test.start_test();
+                let questions = self.current_test.get_layout();
+                self.show_modal = Popups::StartTest(questions);
+            },
+            
+            
+            Message::SelectTopic(topic_key) => {
+                if let Some(topic) = self.topics.get_mut(topic_key) {
+                    
+                    let is_selected = topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+            
+                    if is_selected {
                         
-                        Message::SelectTopic(sent_topic) => {
-                            dbg!(sent_topic.clone());
-                            if let Some(topic) = self.topics.iter_mut().find(|t| t.id == sent_topic.id) {
-                                let is_selected = sent_topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
+                        self.current_card.topics.retain(|&t| t != topic_key);
+                        topic.color = Some(Color::BLACK);
+                        println!("Topic deselected: {}", topic.content);
+                    } else {
                         
-                                
-                                if is_selected {
-                                    self.current_card.topics.retain(|t| t.id != sent_topic.id);
-                                    topic.color = Some(Color::BLACK);
-                                } else {
-                                    self.current_card.id = sent_topic.id;
-                                    self.current_card.topics.push(sent_topic);
-                                    topic.color = Some(Color::WHITE);
-                                }
-                            }
-                        },
-                        
-                        Message::SelectTest(sent_topic) => {
-                            self.current_test.clone().select_topic_to_test(sent_topic);
-                        },
-                        
-                        Message::SubmitCard(card) => {
-                            self.current_test.clone().submit_card_to_test(card);
-                        },
-                        Message::EndTest => {
-                            self.current_test.clone().end_test();
-                            self.update(Message::NoPopup)
-                        },
-                        
+                        self.current_card.topics.push(topic_key);
+                        topic.color = Some(Color::WHITE);
+                        println!("Topic selected: {}", topic.content);
+                    }
+                }
+            },
+            
+            Message::SelectTest(topic_key) => {
+                if let Some(topic) = self.configurable_topics.get_mut(topic_key) {
+                    println!("Processing topic: {}", topic.content);
+                    
+                    let is_selected = topic.color.unwrap_or(Color::WHITE) == Color::BLACK;
+                    if is_selected {
+                        topic.color = Some(Color::WHITE)
+                    } else {
+                        topic.color = Some(Color::BLACK)
+                    }
+
+                    // println!("Updating current test session...");
+                    self.current_test.select_topic_to_test(topic, &self.qna_collection);
+                    println!("Topic {} processed.", topic.content);
+                } else {
+                   // println!("Topic key {} not found in configurable_topics.", topic_key);
+                }
+            }
+            
+            
+            
+            Message::SubmitCard(card) => {
+                self.current_test.submit_card_to_test(card);
+            },
+            
+            Message::EndTest => {
+                self.current_test.end_test();
+                self.update(Message::NoPopup);
+            },
+            
             Message::AwnserChanged(content) => {
                 self.current_card.awnser = content;
                 self.update(Message::UpdateTopic);
@@ -254,34 +332,50 @@ impl App {
             Message::Topics => {
                 self.show_modal = Popups::Topics;
             },
-            Message::SubmitTopic(mut topic, ) => {
+            Message::SubmitTopic(mut topic) => {
                 
-                    self.topics.push(topic.clone());
-                    self.configurable_topics.push(topic);
+                
+                let _topic_key = self.topics.insert(topic.clone());
+                let _conf_topic_key = self.configurable_topics.insert(topic);
             },
-            Message::SetTopic(content) => {
-                self.current_topic = Topic { content, qna: self.current_topic.qna.clone(), ..Default::default() };
-            },
-
             
-            Message::UpdateTest(qna) => {
-                self.qna.pop_front();
-                self.show_modal = Popups::StartTest(qna);
-            },
-            Message::UpdateTopic => {
-                for topic in self.test.iter_mut() {
-                    if let Some(_) = topic.qna.pop() {
-                        topic.qna.push(
-                            QNA {
-                            question: self.current_card.question.clone(),
-                            awnser: self.current_card.awnser.clone(),
-                            id: self.current_card.id
-                        }
-                    );
+            Message::SetTopic(content) => {
+                
+                
+                self.staging_topic = content.clone();
+                if let Some(topic_key) = self.current_topic {
+                    if let Some(topic) = self.topics.get_mut(topic_key) {
+                        topic.content = content;
                     }
                 }
-                
             },
+            
+            Message::UpdateTest(qna_queue) => {
+                
+                
+                self.current_test.qna_queue.pop_front();
+                self.show_modal = Popups::StartTest(qna_queue);
+            },
+            
+            Message::UpdateTopic => {
+                let topics: Vec<&mut Topic> = self.topics.values_mut().collect();
+                for mut topic in topics {
+                    if topic.qna.pop().is_some() {
+                        let new_qna = QNA {
+                            question: self.current_card.question.clone(),
+                            awnser: self.current_card.awnser.clone(),
+                            id: self.current_card.id,
+                        };
+                        let new_qna_key = self.qna_collection.insert(new_qna);
+                        topic.qna.push(new_qna_key);
+                    }
+                }
+            }
+            
+            
+            
+            
+            
             
         }
     }
@@ -454,6 +548,7 @@ impl App {
                                 .foot(Row::with_children(
                                     self.current_card.topics
                                         .iter()
+                                        .filter_map(|topic_key| self.topics.get(*topic_key)) 
                                         .flat_map(|topic| {
                                             vec![
                                                 Text::new(topic.content.clone()).into(), 
@@ -462,6 +557,7 @@ impl App {
                                         })
                                         .collect::<Vec<_>>(),
                                 ))
+                                
                                                          
                                 .style(|_theme: &Theme, _status|  style::card::Style {
                                     head_background: self.current_card.bg_color.unwrap_or(Background::Color(Color::from_rgb8(255, 0, 0))),
@@ -548,7 +644,7 @@ impl App {
                     let id = qna.id;
                     let question = qna.question.clone();
                     let awnser = qna.awnser.clone();
-                    // if self.submitted_cards.iter().any(|card| card.id == id) {
+                    
                         let element: iced::Element<'_, Message> = Container::new(Text::new(question.clone()))
                             .width(110)
                             .height(50)
@@ -559,10 +655,10 @@ impl App {
                             .into();
             
                         display_sidecards.push(element);
-                   // }
+                   
                 }
             
-                let content: iced::Element<'_, Message> = if let Some(qna) = self.qna.front() {
+                let content: iced::Element<'_, Message> = if let Some(qna) = self.current_test.qna_queue.front() {
                     let question = qna.question.clone();
                     Text::new(question.clone()).into()
                 } else {
@@ -713,28 +809,46 @@ impl App {
                 )
             },
             Popups::Topics => {
-        
                 container(
                     modal(
                         main_container,
                         stack![
-                            background_rect,             
+                            background_rect,
                             column!(
                                 row!(
-                                
                                     row!(
                                         Space::new(100.0, 0.0),
                                         column!(
                                             Space::new(0.0, 80),
                                             container(
                                                 column!(
-                                                Button::new("Submit").on_press(Message::SubmitTopic(Topic { content: self.current_topic.content.clone(), color: Some(Color::BLACK), id: self.topics.len() as u32, qna: self.current_topic.qna.clone() })),
-                                                text_input("Put text here",  &self.current_topic.content)
-                                                .on_input(Message::SetTopic),
+                                                    
+                                                    if let Some(topic_key) = self.current_topic {
+                                                        if let Some(topic) = self.topics.get(topic_key) {
+                                                            column!(
+                                                                Button::new("Submit")
+                                                                    .on_press(Message::SubmitTopic(Topic {content:topic.content.clone(),color:Some(Color::BLACK),qna:topic.qna.clone(), key: None })),
+                                                                text_input("Put text here", &topic.content)
+                                                                    .on_input(Message::SetTopic),
+                                                            )
+                                                        } else {
+                                                            column!(
+                                                                Text::new("Topic not found")
+                                                            )
+                                                        }
+                                                    } else {
+    
+                                                        column!(
+                                                            text_input("Enter new topic", &self.staging_topic)
+                                                                .on_input(Message::SetTopic),
+                                                            Button::new("Submit")
+                                                                .on_press(Message::SubmitTopic(
+                                                                    Topic {content:self.staging_topic.clone(),color:Some(Color::BLACK),qna:vec![], key: None }
+                                                            )),
+                                                        )
+                                                    }
                                                 )
                                             )
-                                            
-                                            
                                             .height(150.0)
                                             .width(120.0)
                                             .padding(10.0)
@@ -744,26 +858,20 @@ impl App {
                                             }),
                                         ),
                                     ),
-                                    
-                                    
                                     topic_scrollbar(self).center_y(Length::Fill),
-                                            
-                                    
                                     Space::new(60.0, 0.0),
+                                ),
+                                container(
+                                    Button::new("Exit").on_press(Message::NoPopup)
+                                )
+                                .center_x(Length::Fill)
                             ),
-                            
-                            container(
-                                Button::new("Exit").on_press(Message::NoPopup)
-                            ).center_x(Length::Fill)
-                        ),
-                       
-                       
-                       
                         ],
-                        Message::None
+                        Message::None,
                     )
                 )
-            },
+            }
+            
         }
     }
         
@@ -810,11 +918,10 @@ impl MenuButton {
 
 
 
-
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
     
-    let item_arr =  match app.show_modal {
+    let item_arr: SlotMap<_, _> =  match app.show_modal {
         Popups::Topics => {
             
             app.topics.clone()
@@ -824,14 +931,15 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
             app.configurable_topics.clone()
         }
         Popups::Test => {
-            
             app.test.clone()
+            
         }
         _ => {
-            vec![]
+            let final_slot: SlotMap<TopicKey, Topic> = SlotMap::with_key();
+            final_slot
         }
     };
-    for (id, topic) in item_arr.iter().enumerate() {
+    for (id, topic) in item_arr.iter() {
         let final_color = topic.color.unwrap_or(Color::from_rgb8(0, 0, 0));
         let topic_background: Element<'_, Message, Theme, Renderer> = Rectangle::new(100.0, 80.0)
             .style(final_color)
@@ -866,10 +974,10 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                                         
                                         
                                         
-                                        Message::SelectTest(topic.clone())
+                                        Message::SelectTest(id)
                                     }
                                     Popups::Topics => {
-                                        Message::SelectTopic(topic.clone())
+                                        Message::SelectTopic(id)
                                     }
                                     _ => {
                                         Message::None
