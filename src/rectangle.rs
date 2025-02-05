@@ -7,7 +7,7 @@ pub mod rectangle {
         },
         border, Color, Element, Renderer, Shadow, Theme,
     };
-    use iced::{Length, Point, Rectangle as IcedRectangle, Size};
+    use iced::{Length, Rectangle as IcedRectangle, Size};
 
     pub struct Rectangle {
         width: f32,

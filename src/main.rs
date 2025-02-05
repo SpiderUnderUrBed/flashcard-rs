@@ -1,24 +1,21 @@
 use std::collections::VecDeque;
 
 use iced::{
-    advanced::{
-        graphics::{core::Element, futures::backend::default},
-        Widget,
-    },
+    advanced::graphics::core::Element,
     alignment,
     widget::{
-        self, button, center, container, mouse_area, opaque, row,
+        button, center, container, mouse_area, opaque, row,
         scrollable::{self, Rail, Scroller},
         stack, text, text_input, Button, Column, Container, Row, Scrollable, Space, Text,
     },
-    Alignment, Background, Border, Color, Length, Renderer, Settings, Shadow, Size, Task, Theme,
+    Alignment, Background, Border, Color, Length, Renderer, Theme,
 };
 
 use iced::widget::column;
 use iced_aw::menu_items;
 use iced_aw::{
     card, color_picker,
-    menu::{self, Item, Menu},
+    menu::{Item, Menu},
     menu_bar, style,
 };
 
@@ -29,7 +26,6 @@ mod pin;
 mod rectangle;
 
 use pin::Pin;
-use rand::seq::SliceRandom;
 use rectangle::rectangle::Rectangle;
 
 new_key_type! {
@@ -102,7 +98,7 @@ struct QNA {
 
 mod test_module {
     use super::QnaKey;
-    use super::{Flashcard, Topic, TopicKey, QNA};
+    use super::{Flashcard, Topic, QNA};
     use slotmap::SlotMap;
     use std::collections::VecDeque;
 
@@ -297,7 +293,7 @@ impl App {
             Message::Topics => {
                 self.show_modal = Popups::Topics;
             }
-            Message::SubmitTopic(mut topic) => {
+            Message::SubmitTopic(topic) => {
                 let _topic_key = self.topics.insert(topic.clone());
                 let _conf_topic_key = self.configurable_topics.insert(topic);
             }
@@ -318,7 +314,7 @@ impl App {
 
             Message::UpdateTopic => {
                 let topics: Vec<&mut Topic> = self.topics.values_mut().collect();
-                for mut topic in topics {
+                for topic in topics {
                     if topic.qna.pop().is_some() {
                         let new_qna = QNA {
                             question: self.current_card.question.clone(),
