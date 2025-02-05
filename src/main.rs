@@ -24,9 +24,10 @@ use slotmap::SlotMap;
 
 mod pin;
 mod rectangle;
+mod test_module;
 
 use pin::Pin;
-use rectangle::rectangle::Rectangle;
+use rectangle::Rectangle;
 
 new_key_type! {
     pub struct TopicKey;
@@ -94,68 +95,6 @@ struct QNA {
     question: String,
     awnser: String,
     id: u32,
-}
-
-mod test_module {
-    use super::QnaKey;
-    use super::{Flashcard, Topic, QNA};
-    use slotmap::SlotMap;
-    use std::collections::VecDeque;
-
-    #[derive(Default, Debug, Clone)]
-    pub struct Test {
-        cards: Vec<Flashcard>,
-        pub qna_queue: VecDeque<QNA>,
-    }
-
-    impl Test {
-        pub fn start_test(&mut self) {
-            println!("Test started!");
-        }
-
-        pub fn get_layout(&self) -> VecDeque<QNA> {
-            println!("Current Q&A layout: {:?}", self.qna_queue);
-            self.qna_queue.clone()
-        }
-
-        pub fn submit_card_to_test(&mut self, card: Flashcard) {
-            self.cards.push(card);
-            println!("Card submitted to test.");
-        }
-
-        pub fn select_topic_to_test(
-            &mut self,
-            topic: &Topic,
-            qna_collection: &SlotMap<QnaKey, QNA>,
-        ) {
-            self.qna_queue = topic
-                .qna
-                .iter()
-                .filter_map(|&qna_key| qna_collection.get(qna_key).cloned())
-                .collect();
-            println!("Selected topic for test: {}", topic.content);
-        }
-
-        pub fn end_test(&mut self) {
-            self.qna_queue.clear();
-            println!("Test ended!");
-        }
-    }
-
-    pub fn add_qna_to_topic(
-        card: &Flashcard,
-        topic: &mut Topic,
-        qna_collection: &mut SlotMap<QnaKey, QNA>,
-    ) {
-        let new_qna = QNA {
-            question: card.header.clone(),
-            awnser: card.footer.clone(),
-            id: card.id,
-        };
-        let qna_key = qna_collection.insert(new_qna.clone());
-        topic.qna.push(qna_key);
-        println!("QNA added to topic: {}", topic.content);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -530,12 +469,12 @@ impl App {
 
         match &self.show_modal {
             Popups::Flashcards => {
-                let Rect: Element<'_, Message, Theme, Renderer> =
+                let rect: Element<'_, Message, Theme, Renderer> =
                     Rectangle::new(200.0, 200.0).style(Color::WHITE).into();
                 container(modal(
                     main_container,
                     container(stack![
-                        Rect,
+                        rect,
                         container(Button::new("Test").on_press(Message::NoPopup))
                             .center_x(Length::Fill)
                     ]),
@@ -564,12 +503,8 @@ impl App {
                 let mut display_sidecards: Vec<iced::Element<'_, Message>> = vec![];
 
                 for qna in local_qna {
-                    let id = qna.id;
-                    let question = qna.question.clone();
-                    let awnser = qna.awnser.clone();
-
                     let element: iced::Element<'_, Message> =
-                        Container::new(Text::new(question.clone()))
+                        Container::new(Text::new(qna.question.clone()))
                             .width(110)
                             .height(50)
                             .style(|_: &iced::Theme| iced::widget::container::Style {
@@ -826,12 +761,11 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
         let topic_background: Element<'_, Message, Theme, Renderer> =
             Rectangle::new(100.0, 80.0).style(final_color).into();
         let button_background = Some(Background::Color(topic.color.unwrap_or(Color::BLACK)));
-        let mut button_text_color = Color::WHITE;
-        if topic.color.unwrap() == Color::WHITE {
-            button_text_color = Color::BLACK
+        let button_text_color = if topic.color.unwrap() == Color::WHITE {
+            Color::BLACK
         } else {
-            button_text_color = Color::WHITE
-        }
+            Color::WHITE
+        };
 
         topic_list.push(
             column!(
