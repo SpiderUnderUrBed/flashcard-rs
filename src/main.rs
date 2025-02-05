@@ -277,23 +277,6 @@ impl App {
             ..Default::default()
         };
 
-        let menu1 = MenuButton::new("Nested Menus", button_style);
-        let menu_bar = menu_bar!((menu1.debug_button_s(), {
-            let sub_menu = Menu::new(menu_items!((menu1.debug_button("E".to_string()))(
-                menu1.debug_button("E".to_string())
-            )(
-                menu1.debug_button("E".to_string())
-            )(
-                menu1.debug_button("E".to_string())
-            )(
-                menu1.debug_button("E".to_string())
-            )))
-            .max_width(180.0)
-            .offset(15.0)
-            .spacing(5.0);
-            sub_menu
-        }));
-
         let header1: Element<'_, Message, Theme, Renderer> = Rectangle::new(1000.0, 30.0)
             .style(Color::from_rgb8(81, 80, 80))
             .into();
@@ -312,147 +295,123 @@ impl App {
             question_column.push(Text::new(self.current_card.question.clone()).into());
         }
 
-        let main_container: Element<'_, Message, Theme, Renderer> = container(column!(
-            container(row!(
-                Space::new(20.0, 0.0),
-                column!(Space::new(0.0, 3.0), menu_bar)
+        let main_container: Element<'_, Message, Theme, Renderer> = container(column!(row!(
+            Space::new(70.0, 0.0),
+            container(column!(
+                Text::new("Learn & explore"),
+                Space::new(0.0, 15.0),
+                Button::new("Flashcards").on_press(Message::Flashcards),
+                Space::new(0.0, 10.0),
+                Button::new("Test").on_press(Message::Test),
+                Space::new(0.0, 10.0),
+                Button::new("Configure").on_press(Message::Configure),
+                Space::new(0.0, 10.0),
+                Button::new("Assist").on_press(Message::Assist)
             ))
-            .width(Length::Fixed(1000.0))
-            .height(Length::Fixed(40.0))
+            .width(Length::Fixed(110.0))
+            .height(Length::Fixed(300.0))
             .style(move |_: &iced::Theme| iced::widget::container::Style {
-                background: Some(Background::Color(Color::from_rgb8(81, 80, 80))),
+                background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
                 ..Default::default()
             }),
-            Space::new(0.0, 30.0),
-            row!(
-                Space::new(70.0, 0.0),
-                container(column!(
-                    Text::new("Learn & explore"),
-                    Space::new(0.0, 15.0),
-                    Button::new("Flashcards").on_press(Message::Flashcards),
-                    Space::new(0.0, 10.0),
-                    Button::new("Test").on_press(Message::Test),
-                    Space::new(0.0, 10.0),
-                    Button::new("Configure").on_press(Message::Configure),
-                    Space::new(0.0, 10.0),
-                    Button::new("Assist").on_press(Message::Assist)
-                ))
-                .width(Length::Fixed(110.0))
-                .height(Length::Fixed(300.0))
-                .style(move |_: &iced::Theme| iced::widget::container::Style {
-                    background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                    ..Default::default()
-                }),
-                Space::new(60.0, 0.0),
-                container(column!(
-                    header1,
-                    Space::new(0.0, 20.0),
-                    row!(
-                        Space::new(7.5, 0.0),
-                        container(column!(
-                            Button::new("Text")
-                                .style(|_theme: &Theme, _status| {
-                                    iced::widget::button::Style {
-                                        background: Some(Background::Color(Color::from_rgb8(
-                                            0, 0, 0,
-                                        ))),
-                                        text_color: Color::from_rgb8(255, 255, 255),
-                                        ..Default::default()
-                                    }
-                                })
-                                .on_press(Message::Text),
-                            Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                            Button::new("Topic")
-                                .style(|_theme: &Theme, _status| {
-                                    iced::widget::button::Style {
-                                        background: Some(Background::Color(Color::from_rgb8(
-                                            0, 0, 0,
-                                        ))),
-                                        text_color: Color::from_rgb8(255, 255, 255),
-                                        ..Default::default()
-                                    }
-                                })
-                                .on_press(Message::Topics),
-                            Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                            Button::new("Color")
-                                .style(|_theme: &Theme, _status| {
-                                    iced::widget::button::Style {
-                                        background: Some(Background::Color(Color::from_rgb8(
-                                            0, 0, 0,
-                                        ))),
-                                        text_color: Color::from_rgb8(255, 255, 255),
-                                        ..Default::default()
-                                    }
-                                })
-                                .on_press(Message::ColorPicker),
-                            Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                            Button::new("Image").style(|_theme: &Theme, _status| {
+            Space::new(60.0, 0.0),
+            container(column!(
+                header1,
+                Space::new(0.0, 20.0),
+                row!(
+                    Space::new(7.5, 0.0),
+                    container(column!(
+                        Button::new("Text")
+                            .style(|_theme: &Theme, _status| {
                                 iced::widget::button::Style {
                                     background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
                                     text_color: Color::from_rgb8(255, 255, 255),
                                     ..Default::default()
                                 }
-                            }),
-                            Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                            Button::new("Submit")
-                                .style(|_theme: &Theme, _status| {
-                                    iced::widget::button::Style {
-                                        background: Some(Background::Color(Color::from_rgb8(
-                                            0, 0, 0,
-                                        ))),
-                                        text_color: Color::from_rgb8(255, 255, 255),
-                                        ..Default::default()
-                                    }
-                                })
-                                .on_press(Message::SubmitCard(self.current_card.clone())),
-                        )),
-                        Space::new(7.5, 0.0),
-                        column!(card(
-                            "1",
-                            Column::new()
-                                .push(
-                                    Column::new()
-                                        .push(Column::with_children(question_column))
-                                        .push(Space::new(0.0, 10.0))
-                                        .push(
-                                            Column::new()
-                                                .push(Column::with_children(awnser_column))
-                                        )
-                                )
-                                .push(Space::new(0.0, 50))
-                        )
-                        .foot(Row::with_children(
-                            self.current_card
-                                .topics
-                                .iter()
-                                .filter_map(|topic_key| self.topics.get(*topic_key))
-                                .flat_map(|topic| {
-                                    vec![
-                                        Text::new(topic.content.clone()).into(),
-                                        Space::new(5, Length::Shrink).into(),
-                                    ]
-                                })
-                                .collect::<Vec<_>>(),
-                        ))
-                        .style(|_theme: &Theme, _status| style::card::Style {
-                            head_background: self
-                                .current_card
-                                .bg_color
-                                .unwrap_or(Background::Color(Color::from_rgb8(255, 0, 0))),
-                            ..Default::default()
-                        })
-                        .width(Length::Fixed(400.0)))
+                            })
+                            .on_press(Message::Text),
+                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                        Button::new("Topic")
+                            .style(|_theme: &Theme, _status| {
+                                iced::widget::button::Style {
+                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                    text_color: Color::from_rgb8(255, 255, 255),
+                                    ..Default::default()
+                                }
+                            })
+                            .on_press(Message::Topics),
+                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                        Button::new("Color")
+                            .style(|_theme: &Theme, _status| {
+                                iced::widget::button::Style {
+                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                    text_color: Color::from_rgb8(255, 255, 255),
+                                    ..Default::default()
+                                }
+                            })
+                            .on_press(Message::ColorPicker),
+                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                        Button::new("Image").style(|_theme: &Theme, _status| {
+                            iced::widget::button::Style {
+                                background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                text_color: Color::from_rgb8(255, 255, 255),
+                                ..Default::default()
+                            }
+                        }),
+                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                        Button::new("Submit")
+                            .style(|_theme: &Theme, _status| {
+                                iced::widget::button::Style {
+                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                    text_color: Color::from_rgb8(255, 255, 255),
+                                    ..Default::default()
+                                }
+                            })
+                            .on_press(Message::SubmitCard(self.current_card.clone())),
+                    )),
+                    Space::new(7.5, 0.0),
+                    column!(card(
+                        "1",
+                        Column::new()
+                            .push(
+                                Column::new()
+                                    .push(Column::with_children(question_column))
+                                    .push(Space::new(0.0, 10.0))
+                                    .push(Column::new().push(Column::with_children(awnser_column)))
+                            )
+                            .push(Space::new(0.0, 50))
                     )
-                ))
-                .width(Length::Fixed(500.0))
-                .height(Length::Fixed(300.0))
-                .style(move |_: &iced::Theme| iced::widget::container::Style {
-                    background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                    ..Default::default()
-                })
-                .align_x(Alignment::Center)
-            )
-        ))
+                    .foot(Row::with_children(
+                        self.current_card
+                            .topics
+                            .iter()
+                            .filter_map(|topic_key| self.topics.get(*topic_key))
+                            .flat_map(|topic| {
+                                vec![
+                                    Text::new(topic.content.clone()).into(),
+                                    Space::new(5, Length::Shrink).into(),
+                                ]
+                            })
+                            .collect::<Vec<_>>(),
+                    ))
+                    .style(|_theme: &Theme, _status| style::card::Style {
+                        head_background: self
+                            .current_card
+                            .bg_color
+                            .unwrap_or(Background::Color(Color::from_rgb8(255, 0, 0))),
+                        ..Default::default()
+                    })
+                    .width(Length::Fixed(400.0)))
+                )
+            ))
+            .width(Length::Fixed(500.0))
+            .height(Length::Fixed(300.0))
+            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
+                ..Default::default()
+            })
+            .align_x(Alignment::Center)
+        )))
         .width(Length::Fixed(800.0))
         .height(Length::Fixed(1000.0))
         .style(move |_: &iced::Theme| iced::widget::container::Style {
@@ -694,53 +653,6 @@ impl App {
                 Message::None,
             )),
         }
-    }
-}
-
-#[derive(Copy, Clone)]
-struct MenuButton {
-    main_label: &'static str,
-    style: Option<iced::widget::button::Style>,
-}
-
-impl MenuButton {
-    fn new(label: &'static str, style: iced::widget::button::Style) -> Self {
-        Self {
-            main_label: label,
-            style: Some(style),
-        }
-    }
-
-    fn labeled_button(
-        self,
-        label: String,
-        msg: Message,
-    ) -> button::Button<'static, Message, iced::Theme, iced::Renderer> {
-        Self::base_button(self, text(label).align_y(alignment::Vertical::Center), msg)
-    }
-
-    fn debug_button(
-        self,
-        label: String,
-    ) -> button::Button<'static, Message, iced::Theme, iced::Renderer> {
-        Self::labeled_button(self, label.clone(), Message::Debug(label.clone())).width(Length::Fill)
-    }
-
-    fn debug_button_s(self) -> button::Button<'static, Message, iced::Theme, iced::Renderer> {
-        let label = self.main_label;
-        Self::labeled_button(self, label.to_string(), Message::Debug(label.to_string()))
-            .width(Length::Shrink)
-    }
-
-    fn base_button<'a>(
-        self,
-        content: impl Into<Element<'a, Message, Theme, Renderer>>,
-        msg: Message,
-    ) -> button::Button<'a, Message> {
-        button(content)
-            .padding([4, 8])
-            .style(move |theme: &Theme, status: iced::widget::button::Status| self.style.unwrap())
-            .on_press(msg)
     }
 }
 
