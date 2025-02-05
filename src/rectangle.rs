@@ -1,92 +1,88 @@
-
-
-pub mod rectangle {
-    use iced::advanced::renderer;
-    use iced::{advanced::{
+use iced::{
+    advanced::{
+        graphics::core::Element,
         layout::{self, Layout},
+        renderer,
         widget::{self, Widget},
-    }, border, Color, Element, Renderer, Shadow, Theme};
-    use iced::{Length, Point, Rectangle as IcedRectangle, Size};
-    
+    },
+    mouse, Background,
+};
+use iced::{border, Color, Length, Rectangle, Renderer, Shadow, Size, Theme};
 
-    pub struct Rectangle {
-        width: f32,
-        length: f32,
-        background_color: Color,
-        border_radius: f32,
-    }
-   
-    impl Rectangle {
-        pub fn new(width: f32, length: f32 ) -> Self {
-            Self { width, length, background_color: Color::BLACK, border_radius: 0.0 }
-        }
-        pub fn style(mut self, color: Color) -> Self {
-            self.background_color = color;
-            self
-        }
-        pub fn border_radius(mut self, border_radius: f32) -> Self {
-            self.border_radius = border_radius;
-            self
+pub struct RoundedRectangle {
+    width: f32,
+    height: f32,
+    background_color: Color,
+    border_radius: f32,
+}
+
+impl RoundedRectangle {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            width,
+            height,
+            background_color: Color::BLACK,
+            border_radius: 0.0,
         }
     }
 
-    impl<Message: 'static>  Into<Element<'_, Message, Theme, Renderer>> for Rectangle
-    where
-        Renderer: renderer::Renderer, 
-    {
-        fn into(self) -> Element<'static, Message> {
-            Element::new(self)
+    pub fn bg_color(mut self, color: Color) -> Self {
+        self.background_color = color;
+        self
+    }
+
+    pub fn border_radius(mut self, border_radius: f32) -> Self {
+        self.border_radius = border_radius;
+        self
+    }
+}
+
+impl<Message: 'static> From<RoundedRectangle> for Element<'_, Message, Theme, Renderer>
+where
+    Renderer: renderer::Renderer,
+{
+    fn from(value: RoundedRectangle) -> Self {
+        Element::new(value)
+    }
+}
+
+impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for RoundedRectangle
+where
+    Renderer: renderer::Renderer,
+{
+    fn layout(
+        &self,
+        _tree: &mut widget::Tree,
+        _renderer: &Renderer,
+        _limits: &layout::Limits,
+    ) -> layout::Node {
+        layout::Node::new(Size::new(self.width, self.height))
+    }
+
+    fn draw(
+        &self,
+        _state: &widget::Tree,
+        renderer: &mut Renderer,
+        _theme: &Theme,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
+        _cursor_position: mouse::Cursor,
+        _viewport: &Rectangle,
+    ) {
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds: layout.bounds(),
+                border: border::rounded(self.border_radius),
+                shadow: Shadow::default(),
+            },
+            Background::Color(self.background_color),
+        );
+    }
+
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: Length::Fixed(self.width),
+            height: Length::Fixed(self.height),
         }
     }
-    
-
-
-    impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for Rectangle
-    where
-        Renderer: renderer::Renderer,
-    {
-    
-        fn layout(
-            &self,
-            _tree: &mut widget::Tree,
-            _renderer: &Renderer,
-            limits: &layout::Limits,
-        ) -> layout::Node {
-            let size = limits
-                .resolve(self.width, self.length, Size::new(self.width, self.length));
-    
-            layout::Node::new(size)
-        }
-    
-        fn draw(
-            &self,
-            _state: &widget::Tree,
-            renderer: &mut Renderer,
-            _theme: &Theme,
-            _style: &renderer::Style,
-            layout: Layout<'_>,
-            _cursor_position: iced::mouse::Cursor,
-            _viewport: &IcedRectangle,
-        ) {
-            let bounds = layout.bounds();
-        
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds,
-                    border: border::rounded(self.border_radius),
-                    shadow: Shadow::default(), 
-                },
-                iced::Background::Color(self.background_color), 
-            );
-        }
-        
-        fn size(&self) -> Size<Length> {
-            Size {
-                width: iced::Length::Fixed(self.width),
-                height: iced::Length::Fixed(self.length),
-            }
-        }
-        
-    }
-    
 }
