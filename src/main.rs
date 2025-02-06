@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use iced::{
     advanced::graphics::core::Element,
     widget::{
-        center, column, container, mouse_area, opaque, row,
+        button, center, column, container, mouse_area, opaque, row,
         scrollable::{self, Rail, Scroller},
         stack, text_input, Button, Column, Container, Row, Scrollable, Space, Text,
     },
@@ -16,15 +16,15 @@ use slotmap::new_key_type;
 use slotmap::SlotMap;
 
 mod pin;
+mod quiz;
 mod rectangle;
-mod test_module;
 
 use pin::Pin;
 use rectangle::RoundedRectangle;
 
 new_key_type! {
     pub struct TopicKey;
-    pub struct QnaKey;
+    pub struct QuestionKey;
 }
 
 pub fn main() -> iced::Result {
@@ -34,11 +34,10 @@ pub fn main() -> iced::Result {
 #[derive(Debug, Default, Clone)]
 enum Popups {
     Flashcards,
-    Assist,
-    Test,
+    Quiz,
     ColorPicker,
     Text,
-    StartTest(VecDeque<QNA>),
+    StartQuiz(VecDeque<Question>),
     Topics,
     Configure,
     #[default]
@@ -48,33 +47,31 @@ enum Popups {
 #[derive(Default)]
 struct App {
     show_modal: Popups,
-    current_test: test_module::Test,
+    current_quiz: quiz::Quiz,
     current_card: Flashcard,
 
-    test: SlotMap<TopicKey, Topic>,
+    quiz: SlotMap<TopicKey, Topic>,
     topics: SlotMap<TopicKey, Topic>,
     configurable_topics: SlotMap<TopicKey, Topic>,
 
-    qna_collection: SlotMap<QnaKey, QNA>,
+    qna_collection: SlotMap<QuestionKey, Question>,
 
     current_topic: Option<TopicKey>,
     staging_topic: String,
     expand_questions: bool,
     expand_answers: bool,
 }
+
 #[derive(Debug, Clone, Default)]
 struct Topic {
-    key: Option<TopicKey>,
     content: String,
     enabled: bool,
-    qna: Vec<QnaKey>,
+    qna: Vec<QuestionKey>,
 }
 
 #[derive(Default, Debug, Clone)]
 struct Flashcard {
     bg_color: Option<Background>,
-    header: String,
-    footer: String,
     question: String,
     answer: String,
     id: u32,
@@ -82,7 +79,7 @@ struct Flashcard {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct QNA {
+struct Question {
     question: String,
     answer: String,
     id: u32,
@@ -90,11 +87,9 @@ struct QNA {
 
 #[derive(Debug, Clone)]
 enum Message {
-    Debug(String),
     Flashcards,
-    Test,
+    Quiz,
     Configure,
-    Assist,
     NoPopup,
     ColorPicker,
     CancelColor,
@@ -102,66 +97,52 @@ enum Message {
     SubmitColor(Color),
     SubmitTopic(Topic),
     SubmitCard(Flashcard),
-    UpdateTest(VecDeque<QNA>),
-    EndTest,
+    UpdateQuiz(VecDeque<Question>),
+    EndQuiz,
     UpdateTopic,
     SetTopic(String),
     SelectTopic(TopicKey),
-    SelectTest(TopicKey),
-    StartTest,
+    SelectQuiz(TopicKey),
+    StartQuiz,
     AnswerChanged(String),
     QuestionChanged(String),
     ExpandQuestions,
     ExpandAnswers,
     Text,
     Topics,
-    Error,
     None,
 }
 
 impl App {
-    fn hide_modal(&mut self) {
-        self.show_modal = Popups::None;
-    }
     fn update(&mut self, message: Message) {
         match message {
-            Message::Flashcards => {
-                self.show_modal = Popups::Flashcards;
-            }
             Message::QuestionChanged(content) => {
                 self.current_card.question = content;
                 self.update(Message::UpdateTopic);
             }
-            Message::StartTest => {
-                self.current_test.start_test();
-                let questions = self.current_test.get_layout();
-                self.show_modal = Popups::StartTest(questions);
+            Message::StartQuiz => {
+                self.current_quiz.start_quiz();
+                let questions = self.current_quiz.get_layout();
+                self.show_modal = Popups::StartQuiz(questions);
             }
 
             Message::SelectTopic(topic_key) => {
                 if let Some(topic) = self.topics.get_mut(topic_key) {
-                    
-                    let is_selected = topic.enabled;    
-                    if is_selected {
+                    if topic.enabled {
                         self.current_card.topics.retain(|&t| t != topic_key);
-                        //topic.color = Some(Color::BLACK);
-                    
-
                         println!("Topic deselected: {}", topic.content);
                     } else {
                         self.current_card.topics.push(topic_key);
-                        // topic.color = Some(Color::WHITE);
                         println!("Topic selected: {}", topic.content);
                     }
-                    topic.enabled = !topic.enabled; 
+                    topic.enabled = !topic.enabled;
                 }
             }
 
-
-            Message::SelectTest(topic_key) => {
+            Message::SelectQuiz(topic_key) => {
                 if let Some(topic) = self.configurable_topics.get_mut(topic_key) {
                     println!("Processing topic: {}", topic.content);
-                    
+
                     topic.enabled = !topic.enabled;
                     // let is_selected = topic.enabled;
                     // if is_selected {
@@ -170,22 +151,24 @@ impl App {
                     //     topic.color = Some(Color::BLACK)
                     // }
 
-                    // println!("Updating current test session...");
-                    self.current_test
-                        .select_topic_to_test(topic, &self.qna_collection);
+                    // println!("Updating current quiz session...");
+                    self.current_quiz
+                        .select_topic_to_quiz(topic, &self.qna_collection);
                     println!("Topic {} processed.", topic.content);
                 } else {
-                    // println!("Topic key {} not found in configurable_topics.", topic_key);
+                    println!(
+                        "Topic key {:?} not found in configurable_topics.",
+                        topic_key
+                    );
                 }
             }
 
-
             Message::SubmitCard(card) => {
-                self.current_test.submit_card_to_test(card);
+                self.current_quiz.submit_card_to_quiz(card);
             }
 
-            Message::EndTest => {
-                self.current_test.end_test();
+            Message::EndQuiz => {
+                self.current_quiz.end_quiz();
                 self.update(Message::NoPopup);
             }
 
@@ -193,26 +176,9 @@ impl App {
                 self.current_card.answer = content;
                 self.update(Message::UpdateTopic);
             }
-            Message::ExpandQuestions => {
-                self.expand_questions = !self.expand_questions;
-            }
-            Message::ExpandAnswers => {
-                self.expand_answers = !self.expand_answers;
-            }
-            Message::Error => todo!(),
-            Message::Debug(_) => {}
-            Message::Test => {
-                self.show_modal = Popups::Test;
-            }
-            Message::Configure => {
-                self.show_modal = Popups::Configure;
-            }
-            Message::Assist => {}
-            Message::None => {}
-            Message::NoPopup => self.show_modal = Popups::None,
-            Message::ColorPicker => self.show_modal = Popups::ColorPicker,
-            Message::CancelColor => {}
-            Message::ChooseColor => {}
+            Message::ExpandQuestions => self.expand_questions = !self.expand_questions,
+            Message::ExpandAnswers => self.expand_answers = !self.expand_answers,
+
             Message::SubmitColor(color) => {
                 self.current_card = Flashcard {
                     bg_color: Some(Background::Color(color)),
@@ -223,15 +189,22 @@ impl App {
                     ..Default::default()
                 }
             }
-            Message::Text => {
-                self.show_modal = Popups::Text;
-            }
-            Message::Topics => {
-                self.show_modal = Popups::Topics;
-            }
+
+            // Popups
+            Message::Text => self.show_modal = Popups::Text,
+            Message::Topics => self.show_modal = Popups::Topics,
+            Message::Quiz => self.show_modal = Popups::Quiz,
+            Message::Configure => self.show_modal = Popups::Configure,
+            Message::NoPopup => self.show_modal = Popups::None,
+            Message::ColorPicker => self.show_modal = Popups::ColorPicker,
+            Message::Flashcards => self.show_modal = Popups::Flashcards,
+
+            // Miscellaneous
+            Message::None | Message::CancelColor | Message::ChooseColor => {}
+
             Message::SubmitTopic(topic) => {
-                let _topic_key = self.topics.insert(topic.clone());
-                let _conf_topic_key = self.configurable_topics.insert(topic);
+                self.topics.insert(topic.clone());
+                self.configurable_topics.insert(topic);
             }
 
             Message::SetTopic(content) => {
@@ -243,16 +216,16 @@ impl App {
                 }
             }
 
-            Message::UpdateTest(qna_queue) => {
-                self.current_test.qna_queue.pop_front();
-                self.show_modal = Popups::StartTest(qna_queue);
+            Message::UpdateQuiz(qna_queue) => {
+                self.current_quiz.qna_queue.pop_front();
+                self.show_modal = Popups::StartQuiz(qna_queue);
             }
 
             Message::UpdateTopic => {
                 let topics = self.topics.values_mut().collect::<Vec<&mut Topic>>();
                 for topic in topics {
                     if topic.qna.pop().is_some() {
-                        let new_qna = QNA {
+                        let new_qna = Question {
                             question: self.current_card.question.clone(),
                             answer: self.current_card.answer.clone(),
                             id: self.current_card.id,
@@ -264,6 +237,7 @@ impl App {
             }
         }
     }
+
     fn view(&self) -> Container<Message> {
         let rect: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 1000.0)
             .bg_color(Color::WHITE)
@@ -290,6 +264,12 @@ impl App {
             question_column.push(Text::new(self.current_card.question.clone()).into());
         }
 
+        let btn_style = button::Style {
+            background: Some(Color::BLACK.into()),
+            text_color: Color::WHITE,
+            ..Default::default()
+        };
+
         let main_container: Element<'_, Message, Theme, Renderer> = container(column!(row!(
             Space::new(70.0, 0.0),
             container(column!(
@@ -297,18 +277,13 @@ impl App {
                 Space::new(0.0, 15.0),
                 Button::new("Flashcards").on_press(Message::Flashcards),
                 Space::new(0.0, 10.0),
-                Button::new("Test").on_press(Message::Test),
+                Button::new("Quiz").on_press(Message::Quiz),
                 Space::new(0.0, 10.0),
                 Button::new("Configure").on_press(Message::Configure),
-                Space::new(0.0, 10.0),
-                Button::new("Assist").on_press(Message::Assist)
             ))
             .width(Length::Fixed(110.0))
             .height(Length::Fixed(300.0))
-            .style(move |_: &iced::Theme| iced::widget::container::Style {
-                background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                ..Default::default()
-            }),
+            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43))),
             Space::new(60.0, 0.0),
             container(column!(
                 header1,
@@ -317,51 +292,21 @@ impl App {
                     Space::new(7.5, 0.0),
                     container(column!(
                         Button::new("Text")
-                            .style(|_theme: &Theme, _status| {
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                    text_color: Color::from_rgb8(255, 255, 255),
-                                    ..Default::default()
-                                }
-                            })
+                            .style(move |_, _| btn_style)
                             .on_press(Message::Text),
                         Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
                         Button::new("Topic")
-                            .style(|_theme: &Theme, _status| {
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                    text_color: Color::from_rgb8(255, 255, 255),
-                                    ..Default::default()
-                                }
-                            })
+                            .style(move |_, _| btn_style)
                             .on_press(Message::Topics),
                         Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
                         Button::new("Color")
-                            .style(|_theme: &Theme, _status| {
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                    text_color: Color::from_rgb8(255, 255, 255),
-                                    ..Default::default()
-                                }
-                            })
+                            .style(move |_, _| btn_style)
                             .on_press(Message::ColorPicker),
                         Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                        Button::new("Image").style(|_theme: &Theme, _status| {
-                            iced::widget::button::Style {
-                                background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                text_color: Color::from_rgb8(255, 255, 255),
-                                ..Default::default()
-                            }
-                        }),
+                        Button::new("Image").style(move |_, _| btn_style),
                         Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
                         Button::new("Submit")
-                            .style(|_theme: &Theme, _status| {
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                    text_color: Color::from_rgb8(255, 255, 255),
-                                    ..Default::default()
-                                }
-                            })
+                            .style(move |_, _| btn_style)
                             .on_press(Message::SubmitCard(self.current_card.clone())),
                     )),
                     Space::new(7.5, 0.0),
@@ -393,7 +338,7 @@ impl App {
                         head_background: self
                             .current_card
                             .bg_color
-                            .unwrap_or(Background::Color(Color::from_rgb8(255, 0, 0))),
+                            .unwrap_or(Color::from_rgb8(255, 0, 0).into()),
                         ..Default::default()
                     })
                     .width(Length::Fixed(400.0)))
@@ -401,18 +346,12 @@ impl App {
             ))
             .width(Length::Fixed(500.0))
             .height(Length::Fixed(300.0))
-            .style(move |_: &iced::Theme| iced::widget::container::Style {
-                background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                ..Default::default()
-            })
+            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43)))
             .align_x(Alignment::Center)
         )))
         .width(Length::Fixed(800.0))
         .height(Length::Fixed(1000.0))
-        .style(move |_: &iced::Theme| iced::widget::container::Style {
-            background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-            ..Default::default()
-        })
+        .style(|_| container::Style::default().background(Color::BLACK))
         .into();
 
         let main_container = container(row![rect, main_container, rect2]);
@@ -432,54 +371,43 @@ impl App {
                     main_container,
                     container(stack![
                         rect,
-                        container(Button::new("Test").on_press(Message::NoPopup))
+                        container(Button::new("Quiz").on_press(Message::NoPopup))
                             .center_x(Length::Fill)
                     ]),
                     Message::None,
                 ))
             }
             Popups::None => main_container,
-            Popups::Assist => todo!(),
-            Popups::Test => container(modal(
+            Popups::Quiz => container(modal(
                 main_container,
                 container(stack![
                     background_rect,
                     column!(
                         topic_scrollbar(self),
                         Space::new(0.0, 20.0),
-                        container(Button::new("Start test").on_press(Message::StartTest))
+                        container(Button::new("Start quiz").on_press(Message::StartQuiz))
                             .center_x(Length::Fill),
                         Space::new(0.0, 20.0),
-                        container(Button::new("Exit").on_press(Message::EndTest))
+                        container(Button::new("Exit").on_press(Message::EndQuiz))
                             .center_x(Length::Fill)
                     )
                 ]),
                 Message::None,
             )),
-            Popups::StartTest(local_qna) => {
-                let mut display_sidecards: Vec<iced::Element<'_, Message>> = vec![];
+            Popups::StartQuiz(local_qna) => {
+                let display_sidecards = local_qna.iter().map(|qna| {
+                    Container::new(Text::new(qna.question.clone()))
+                        .width(110)
+                        .height(50)
+                        .style(|_| container::Style::default().background(Color::WHITE))
+                        .into()
+                });
 
-                for qna in local_qna {
-                    let element: iced::Element<'_, Message> =
-                        Container::new(Text::new(qna.question.clone()))
-                            .width(110)
-                            .height(50)
-                            .style(|_: &iced::Theme| iced::widget::container::Style {
-                                background: Some(iced::Background::Color(iced::Color::WHITE)),
-                                ..Default::default()
-                            })
-                            .into();
-
-                    display_sidecards.push(element);
-                }
-
-                let content: iced::Element<'_, Message> =
-                    if let Some(qna) = self.current_test.qna_queue.front() {
-                        let question = qna.question.clone();
-                        Text::new(question.clone()).into()
-                    } else {
-                        Text::new("Finished").into()
-                    };
+                let content = if let Some(qna) = self.current_quiz.qna_queue.front() {
+                    Text::new(qna.question.clone())
+                } else {
+                    Text::new("Finished")
+                };
 
                 let main_column = column!(
                     container(row!(
@@ -490,37 +418,22 @@ impl App {
                         ))
                         .width(150)
                         .height(250)
-                        .style(|_: &iced::Theme| {
-                            iced::widget::container::Style {
-                                background: Some(iced::Background::Color(iced::Color::BLACK)),
-                                ..Default::default()
-                            }
-                        }),
+                        .style(|_| container::Style::default().background(Color::BLACK)),
                         Space::new(5, 0),
                         container(
                             container(column!(
                                 content,
                                 Button::new("Next")
-                                    .on_press(Message::UpdateTest(local_qna.clone()))
+                                    .on_press(Message::UpdateQuiz(local_qna.clone()))
                             ))
                             .width(250)
                             .height(150)
-                            .style(|_: &iced::Theme| {
-                                iced::widget::container::Style {
-                                    background: Some(iced::Background::Color(iced::Color::WHITE)),
-                                    ..Default::default()
-                                }
-                            }),
+                            .style(|_| container::Style::default().background(Color::WHITE)),
                         )
                         .center(Length::Fill)
                         .width(500)
                         .height(250)
-                        .style(|_: &iced::Theme| {
-                            iced::widget::container::Style {
-                                background: Some(iced::Background::Color(iced::Color::BLACK)),
-                                ..Default::default()
-                            }
-                        })
+                        .style(|_| container::Style::default().background(Color::BLACK)),
                     )),
                     container(Button::new("Exit").on_press(Message::NoPopup))
                         .center_x(Length::Fill)
@@ -565,7 +478,7 @@ impl App {
                 stack![
                     background_rect,
                     column!(
-                        container("Test").padding(20).center_x(Length::Fill),
+                        container("Quiz").padding(20).center_x(Length::Fill),
                         Space::new(0.0, 20.0),
                         container(
                             text_input("Type your question here..", &self.current_card.question)
@@ -585,95 +498,93 @@ impl App {
                 ],
                 Message::None,
             )),
-            Popups::Topics => {
-                container(
-                    modal(
-                        main_container,
-                        stack![
-                            background_rect,
-                            column!(
-                                row!(
-                                    row!(
-                                        Space::new(100.0, 0.0),
-                                        column!(
-                                            Space::new(0.0, 80),
-                                            container(
+            Popups::Topics => container(modal(
+                main_container,
+                stack![
+                    background_rect,
+                    column!(
+                        row!(
+                            row!(
+                                Space::new(100.0, 0.0),
+                                column!(
+                                        Space::new(0.0, 80),
+                                        container(column!(if let Some(topic_key) =
+                                            self.current_topic
+                                        {
+                                            if let Some(topic) = self.topics.get(topic_key) {
                                                 column!(
-                                                    
-                                                    if let Some(topic_key) = self.current_topic {
-                                                        if let Some(topic) = self.topics.get(topic_key) {
-                                                            column!(
-                                                                Button::new("Submit")
-                                                                    .on_press(Message::SubmitTopic(Topic {content:topic.content.clone(), enabled: false ,qna:topic.qna.clone(), key: None })),
-                                                                text_input("Put text here", &topic.content)
-                                                                    .on_input(Message::SetTopic),
-                                                            )
-                                                        } else {
-                                                            column!(
-                                                                Text::new("Topic not found")
-                                                            )
-                                                        }
-                                                    } else {
-    
-                                                        column!(
-                                                            text_input("Enter new topic", &self.staging_topic)
-                                                                .on_input(Message::SetTopic),
-                                                            Button::new("Submit")
-                                                                .on_press(Message::SubmitTopic(
-                                                                    Topic {content:self.staging_topic.clone(), enabled: false ,qna:vec![], key: None }
-                                                            )),
-                                                        )
-                                                    }
+                                                    Button::new("Submit").on_press(
+                                                        Message::SubmitTopic(Topic {
+                                                            content: topic.content.clone(),
+                                                            enabled: false,
+                                                            qna: topic.qna.clone(),
+                                                        })
+                                                    ),
+                                                    text_input("Put text here", &topic.content)
+                                                        .on_input(Message::SetTopic),
                                                 )
+                                            } else {
+                                                column!(Text::new("Topic not found"))
+                                            }
+                                        } else {
+                                            column!(
+                                                text_input("Enter new topic", &self.staging_topic)
+                                                    .on_input(Message::SetTopic),
+                                                Button::new("Submit").on_press(
+                                                    Message::SubmitTopic(Topic {
+                                                        content: self.staging_topic.clone(),
+                                                        enabled: false,
+                                                        qna: vec![],
+                                                    })
+                                                ),
                                             )
-                                            .height(150.0)
-                                            .width(120.0)
-                                            .padding(10.0)
-                                            .style(move |_: &iced::Theme| iced::widget::container::Style {
-                                                background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-                                                ..Default::default()
-                                            }),
-                                        ),
+                                        }))
+                                        .height(150.0)
+                                        .width(120.0)
+                                        .padding(10.0)
+                                        .style(|_| container::Style::default()
+                                            .background(Color::BLACK)),
                                     ),
-                                    topic_scrollbar(self).center_y(Length::Fill),
-                                    Space::new(60.0, 0.0),
-                                ),
-                                container(
-                                    Button::new("Exit").on_press(Message::NoPopup)
-                                )
-                                .center_x(Length::Fill)
                             ),
-                        ],
-                        Message::None,
-                    )
-                )
-            }
+                            topic_scrollbar(self).center_y(Length::Fill),
+                            Space::new(60.0, 0.0),
+                        ),
+                        container(Button::new("Exit").on_press(Message::NoPopup))
+                            .center_x(Length::Fill)
+                    ),
+                ],
+                Message::None,
+            )),
         }
     }
 }
 
-
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
-    let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
+    let mut topic_list = vec![];
 
     let item_arr: SlotMap<_, _> = match app.show_modal {
         Popups::Topics => app.topics.clone(),
         Popups::Configure => app.configurable_topics.clone(),
-        Popups::Test => app.test.clone(),
-        _ => {
-            let final_slot: SlotMap<TopicKey, Topic> = SlotMap::with_key();
-            final_slot
-        }
+        Popups::Quiz => app.quiz.clone(),
+        _ => SlotMap::with_key(),
     };
     for (id, topic) in item_arr.iter() {
-        let final_color = if topic.enabled { Color::WHITE } else { Color::BLACK };
-        let topic_background: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 80.0)
-            .bg_color(final_color)
-            .into();
-        let button_background = Some(Background::Color(if topic.enabled { Color::WHITE } else { Color::BLACK }));
-        let mut button_text_color = if !topic.enabled { Color::WHITE } else { Color::BLACK };
+        let final_color = if topic.enabled {
+            Color::WHITE
+        } else {
+            Color::BLACK
+        };
+        let topic_background: Element<'_, Message, Theme, Renderer> =
+            RoundedRectangle::new(100.0, 80.0)
+                .bg_color(final_color)
+                .into();
 
-    
+        let button_text_color = if !topic.enabled {
+            Color::WHITE
+        } else {
+            Color::BLACK
+        };
+
         topic_list.push(
             column!(
                 Space::new(0.0, 10.0),
@@ -682,23 +593,17 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                     container(
                         container(
                             Button::new(Text::new(topic.content.clone()))
-                                .style(move |_theme: &Theme, _status| {
-                                    iced::widget::button::Style {
-                                        background: button_background,
+                                .style(move |_, _| {
+                                    button::Style {
+                                        background: Some(final_color.into()),
                                         text_color: button_text_color,
                                         ..Default::default()
                                     }
                                 })
                                 .on_press(match app.show_modal {
-                                    Popups::Configure => {
-                                        Message::SelectTest(id)
-                                    }
-                                    Popups::Topics => {
-                                        Message::SelectTopic(id)
-                                    }
-                                    _ => {
-                                        Message::None
-                                    }
+                                    Popups::Configure => Message::SelectQuiz(id),
+                                    Popups::Topics => Message::SelectTopic(id),
+                                    _ => Message::None,
                                 })
                         )
                         .center(Length::Fill)
@@ -716,11 +621,8 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
             Scrollable::new(Row::with_children(topic_list))
                 .height(100.0)
                 .width(300.0)
-                .style(|_theme: &Theme, _status| scrollable::Style {
-                    container: iced::widget::container::Style {
-                        background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                        ..Default::default()
-                    },
+                .style(|_, _| scrollable::Style {
+                    container: container::Style::default().background(Color::from_rgb8(43, 43, 43)),
                     vertical_rail: Rail {
                         background: Some(Background::Color(Color::BLACK)),
                         border: Border {
@@ -735,9 +637,7 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                     },
                     horizontal_rail: Rail {
                         background: Some(Background::Color(Color::from_rgb8(43, 43, 43))),
-                        border: Border {
-                            ..Default::default()
-                        },
+                        border: Border::default(),
                         scroller: Scroller {
                             color: Color::WHITE,
                             border: Border {
@@ -751,10 +651,7 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                     scrollable::Scrollbar::new(),
                 )),
         )
-        .style(move |_: &iced::Theme| iced::widget::container::Style {
-            background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
-            ..Default::default()
-        })
+        .style(|_| container::Style::default().background(Color::BLACK))
         .center(Length::Fill)
         .height(150)
         .width(350),
@@ -774,19 +671,8 @@ where
     stack![
         base.into(),
         opaque(
-            mouse_area(center(opaque(content)).style(|_theme| {
-                container::Style {
-                    background: Some(
-                        Color {
-                            a: 0.8,
-                            ..Color::BLACK
-                        }
-                        .into(),
-                    ),
-                    ..container::Style::default()
-                }
-            }))
-            .on_press(on_blur)
+            mouse_area(center(opaque(content)).style(|_| Color::BLACK.scale_alpha(0.8).into()))
+                .on_press(on_blur)
         )
     ]
     .into()
