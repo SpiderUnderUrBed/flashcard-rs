@@ -46,7 +46,7 @@ pub fn add_qna_to_topic(
 ) {
     let new_qna = QNA {
         question: card.header.clone(),
-        awnser: card.footer.clone(),
+        answer: card.footer.clone(),
         id: card.id,
     };
     let qna_key = qna_collection.insert(new_qna.clone());

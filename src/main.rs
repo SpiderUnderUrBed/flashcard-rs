@@ -66,7 +66,7 @@ struct App {
 struct Topic {
     key: Option<TopicKey>,
     content: String,
-    color: Option<Color>,
+    enabled: bool,
     qna: Vec<QnaKey>,
 }
 
@@ -140,30 +140,35 @@ impl App {
 
             Message::SelectTopic(topic_key) => {
                 if let Some(topic) = self.topics.get_mut(topic_key) {
-                    let is_selected = topic.color.unwrap_or(Color::BLACK) == Color::WHITE;
-
+                    
+                    let is_selected = topic.enabled;    
                     if is_selected {
                         self.current_card.topics.retain(|&t| t != topic_key);
-                        topic.color = Some(Color::BLACK);
+                        //topic.color = Some(Color::BLACK);
+                    
+
                         println!("Topic deselected: {}", topic.content);
                     } else {
                         self.current_card.topics.push(topic_key);
-                        topic.color = Some(Color::WHITE);
+                        // topic.color = Some(Color::WHITE);
                         println!("Topic selected: {}", topic.content);
                     }
+                    topic.enabled = !topic.enabled; 
                 }
             }
+
 
             Message::SelectTest(topic_key) => {
                 if let Some(topic) = self.configurable_topics.get_mut(topic_key) {
                     println!("Processing topic: {}", topic.content);
-
-                    let is_selected = topic.color.unwrap_or(Color::WHITE) == Color::BLACK;
-                    if is_selected {
-                        topic.color = Some(Color::WHITE)
-                    } else {
-                        topic.color = Some(Color::BLACK)
-                    }
+                    
+                    topic.enabled = !topic.enabled;
+                    // let is_selected = topic.enabled;
+                    // if is_selected {
+                    //     topic.color = Some(Color::WHITE)
+                    // } else {
+                    //     topic.color = Some(Color::BLACK)
+                    // }
 
                     // println!("Updating current test session...");
                     self.current_test
@@ -173,6 +178,7 @@ impl App {
                     // println!("Topic key {} not found in configurable_topics.", topic_key);
                 }
             }
+
 
             Message::SubmitCard(card) => {
                 self.current_test.submit_card_to_test(card);
@@ -579,74 +585,73 @@ impl App {
                 ],
                 Message::None,
             )),
-            Popups::Topics => container(modal(
-                main_container,
-                stack![
-                    background_rect,
-                    column!(
-                        row!(
-                            row!(
-                                Space::new(100.0, 0.0),
-                                column!(
-                                    Space::new(0.0, 80),
-                                    container(column!(
-                                        if let Some(topic_key) = self.current_topic {
-                                            if let Some(topic) = self.topics.get(topic_key) {
+            Popups::Topics => {
+                container(
+                    modal(
+                        main_container,
+                        stack![
+                            background_rect,
+                            column!(
+                                row!(
+                                    row!(
+                                        Space::new(100.0, 0.0),
+                                        column!(
+                                            Space::new(0.0, 80),
+                                            container(
                                                 column!(
-                                                    Button::new("Submit").on_press(
-                                                        Message::SubmitTopic(Topic {
-                                                            content: topic.content.clone(),
-                                                            color: Some(Color::BLACK),
-                                                            qna: topic.qna.clone(),
-                                                            key: None
-                                                        })
-                                                    ),
-                                                    text_input("Put text here", &topic.content)
-                                                        .on_input(Message::SetTopic),
+                                                    
+                                                    if let Some(topic_key) = self.current_topic {
+                                                        if let Some(topic) = self.topics.get(topic_key) {
+                                                            column!(
+                                                                Button::new("Submit")
+                                                                    .on_press(Message::SubmitTopic(Topic {content:topic.content.clone(), enabled: false ,qna:topic.qna.clone(), key: None })),
+                                                                text_input("Put text here", &topic.content)
+                                                                    .on_input(Message::SetTopic),
+                                                            )
+                                                        } else {
+                                                            column!(
+                                                                Text::new("Topic not found")
+                                                            )
+                                                        }
+                                                    } else {
+    
+                                                        column!(
+                                                            text_input("Enter new topic", &self.staging_topic)
+                                                                .on_input(Message::SetTopic),
+                                                            Button::new("Submit")
+                                                                .on_press(Message::SubmitTopic(
+                                                                    Topic {content:self.staging_topic.clone(), enabled: false ,qna:vec![], key: None }
+                                                            )),
+                                                        )
+                                                    }
                                                 )
-                                            } else {
-                                                column!(Text::new("Topic not found"))
-                                            }
-                                        } else {
-                                            column!(
-                                                text_input("Enter new topic", &self.staging_topic)
-                                                    .on_input(Message::SetTopic),
-                                                Button::new("Submit").on_press(
-                                                    Message::SubmitTopic(Topic {
-                                                        content: self.staging_topic.clone(),
-                                                        color: Some(Color::BLACK),
-                                                        qna: vec![],
-                                                        key: None
-                                                    })
-                                                ),
                                             )
-                                        }
-                                    ))
-                                    .height(150.0)
-                                    .width(120.0)
-                                    .padding(10.0)
-                                    .style(
-                                        move |_: &iced::Theme| iced::widget::container::Style {
-                                            background: Some(Background::Color(Color::from_rgb8(
-                                                0, 0, 0
-                                            ))),
-                                            ..Default::default()
-                                        }
+                                            .height(150.0)
+                                            .width(120.0)
+                                            .padding(10.0)
+                                            .style(move |_: &iced::Theme| iced::widget::container::Style {
+                                                background: Some(Background::Color(Color::from_rgb8(0, 0, 0))),
+                                                ..Default::default()
+                                            }),
+                                        ),
                                     ),
+                                    topic_scrollbar(self).center_y(Length::Fill),
+                                    Space::new(60.0, 0.0),
                                 ),
+                                container(
+                                    Button::new("Exit").on_press(Message::NoPopup)
+                                )
+                                .center_x(Length::Fill)
                             ),
-                            topic_scrollbar(self).center_y(Length::Fill),
-                            Space::new(60.0, 0.0),
-                        ),
-                        container(Button::new("Exit").on_press(Message::NoPopup))
-                            .center_x(Length::Fill)
-                    ),
-                ],
-                Message::None,
-            )),
+                        ],
+                        Message::None,
+                    )
+                )
+            }
         }
     }
 }
+
 
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list: Vec<Element<'_, Message, Theme, Renderer>> = vec![];
@@ -661,18 +666,14 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
         }
     };
     for (id, topic) in item_arr.iter() {
-        let final_color = topic.color.unwrap_or(Color::from_rgb8(0, 0, 0));
-        let topic_background: Element<'_, Message, Theme, Renderer> =
-            RoundedRectangle::new(100.0, 80.0)
-                .bg_color(final_color)
-                .into();
-        let button_background = Some(Background::Color(topic.color.unwrap_or(Color::BLACK)));
-        let button_text_color = if topic.color.unwrap() == Color::WHITE {
-            Color::BLACK
-        } else {
-            Color::WHITE
-        };
+        let final_color = if topic.enabled { Color::WHITE } else { Color::BLACK };
+        let topic_background: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 80.0)
+            .bg_color(final_color)
+            .into();
+        let button_background = Some(Background::Color(if topic.enabled { Color::WHITE } else { Color::BLACK }));
+        let mut button_text_color = if !topic.enabled { Color::WHITE } else { Color::BLACK };
 
+    
         topic_list.push(
             column!(
                 Space::new(0.0, 10.0),
