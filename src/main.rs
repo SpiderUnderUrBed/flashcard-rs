@@ -2,12 +2,14 @@ use std::collections::VecDeque;
 
 use iced::{
     advanced::graphics::core::Element,
+    alignment,
     widget::{
         button, center, column, container, mouse_area, opaque, row,
         scrollable::{self, Rail, Scroller},
         stack, text_input, Button, Column, Container, Row, Scrollable, Space, Text,
     },
-    Alignment, Background, Border, Color, Length, Renderer, Theme,
+    Alignment, Background, Border, Color,
+    Length::{self}, Renderer, Theme,
 };
 
 use iced_aw::{card, color_picker, style};
@@ -46,7 +48,7 @@ enum Popups {
 
 #[derive(Default)]
 struct App {
-    show_modal: Popups,
+    current_popup: Popups,
     current_quiz: quiz::Quiz,
     current_card: Flashcard,
 
@@ -123,7 +125,7 @@ impl App {
             Message::StartQuiz => {
                 self.current_quiz.start_quiz();
                 let questions = self.current_quiz.get_layout();
-                self.show_modal = Popups::StartQuiz(questions);
+                self.current_popup = Popups::StartQuiz(questions);
             }
 
             Message::SelectTopic(topic_key) => {
@@ -191,13 +193,13 @@ impl App {
             }
 
             // Popups
-            Message::Text => self.show_modal = Popups::Text,
-            Message::Topics => self.show_modal = Popups::Topics,
-            Message::Quiz => self.show_modal = Popups::Quiz,
-            Message::Configure => self.show_modal = Popups::Configure,
-            Message::NoPopup => self.show_modal = Popups::None,
-            Message::ColorPicker => self.show_modal = Popups::ColorPicker,
-            Message::Flashcards => self.show_modal = Popups::Flashcards,
+            Message::Text => self.current_popup = Popups::Text,
+            Message::Topics => self.current_popup = Popups::Topics,
+            Message::Quiz => self.current_popup = Popups::Quiz,
+            Message::Configure => self.current_popup = Popups::Configure,
+            Message::NoPopup => self.current_popup = Popups::None,
+            Message::ColorPicker => self.current_popup = Popups::ColorPicker,
+            Message::Flashcards => self.current_popup = Popups::Flashcards,
 
             // Miscellaneous
             Message::None | Message::CancelColor | Message::ChooseColor => {}
@@ -218,7 +220,7 @@ impl App {
 
             Message::UpdateQuiz(qna_queue) => {
                 self.current_quiz.qna_queue.pop_front();
-                self.show_modal = Popups::StartQuiz(qna_queue);
+                self.current_popup = Popups::StartQuiz(qna_queue);
             }
 
             Message::UpdateTopic => {
@@ -239,135 +241,21 @@ impl App {
     }
 
     fn view(&self) -> Container<Message> {
-        let rect: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 1000.0)
-            .bg_color(Color::WHITE)
-            .into();
-        let rect2: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(100.0, 1000.0)
-            .bg_color(Color::WHITE)
-            .into();
-
-        let header1: Element<'_, Message, Theme, Renderer> = RoundedRectangle::new(1000.0, 30.0)
-            .bg_color(Color::from_rgb8(81, 80, 80))
-            .into();
-
-        let mut answer_column: Vec<Element<Message, Theme, Renderer>> =
-            vec![Button::new("Expand answers")
-                .on_press(Message::ExpandAnswers)
-                .into()];
-        if self.expand_answers {
-            answer_column.push(Text::new(self.current_card.answer.clone()).into());
-        }
-        let mut question_column = vec![Button::new("Expand questions")
-            .on_press(Message::ExpandQuestions)
-            .into()];
-        if self.expand_questions {
-            question_column.push(Text::new(self.current_card.question.clone()).into());
-        }
-
-        let btn_style = button::Style {
-            background: Some(Color::BLACK.into()),
-            text_color: Color::WHITE,
-            ..Default::default()
-        };
-
-        let main_container: Element<'_, Message, Theme, Renderer> = container(column!(row!(
-            Space::new(70.0, 0.0),
-            container(column!(
-                Text::new("Learn & explore"),
-                Space::new(0.0, 15.0),
-                Button::new("Flashcards").on_press(Message::Flashcards),
-                Space::new(0.0, 10.0),
-                Button::new("Quiz").on_press(Message::Quiz),
-                Space::new(0.0, 10.0),
-                Button::new("Configure").on_press(Message::Configure),
-            ))
-            .width(Length::Fixed(110.0))
-            .height(Length::Fixed(300.0))
-            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43))),
-            Space::new(60.0, 0.0),
-            container(column!(
-                header1,
-                Space::new(0.0, 20.0),
-                row!(
-                    Space::new(7.5, 0.0),
-                    container(column!(
-                        Button::new("Text")
-                            .style(move |_, _| btn_style)
-                            .on_press(Message::Text),
-                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                        Button::new("Topic")
-                            .style(move |_, _| btn_style)
-                            .on_press(Message::Topics),
-                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                        Button::new("Color")
-                            .style(move |_, _| btn_style)
-                            .on_press(Message::ColorPicker),
-                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                        Button::new("Image").style(move |_, _| btn_style),
-                        Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
-                        Button::new("Submit")
-                            .style(move |_, _| btn_style)
-                            .on_press(Message::SubmitCard(self.current_card.clone())),
-                    )),
-                    Space::new(7.5, 0.0),
-                    column!(card(
-                        "1",
-                        Column::new()
-                            .push(
-                                Column::new()
-                                    .push(Column::with_children(question_column))
-                                    .push(Space::new(0.0, 10.0))
-                                    .push(Column::new().push(Column::with_children(answer_column)))
-                            )
-                            .push(Space::new(0.0, 50))
-                    )
-                    .foot(Row::with_children(
-                        self.current_card
-                            .topics
-                            .iter()
-                            .filter_map(|topic_key| self.topics.get(*topic_key))
-                            .flat_map(|topic| {
-                                vec![
-                                    Text::new(topic.content.clone()).into(),
-                                    Space::new(5, Length::Shrink).into(),
-                                ]
-                            })
-                            .collect::<Vec<_>>(),
-                    ))
-                    .style(|_theme: &Theme, _status| style::card::Style {
-                        head_background: self
-                            .current_card
-                            .bg_color
-                            .unwrap_or(Color::from_rgb8(255, 0, 0).into()),
-                        ..Default::default()
-                    })
-                    .width(Length::Fixed(400.0)))
-                )
-            ))
-            .width(Length::Fixed(500.0))
-            .height(Length::Fixed(300.0))
-            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43)))
-            .align_x(Alignment::Center)
-        )))
-        .width(Length::Fixed(800.0))
-        .height(Length::Fixed(1000.0))
-        .style(|_| container::Style::default().background(Color::BLACK))
-        .into();
-
-        let main_container = container(row![rect, main_container, rect2]);
+        let main_container = container(self.main_container());
         let background_rect: Element<'_, Message, Theme, Renderer> =
             RoundedRectangle::new(700.0, 340.0)
                 .bg_color(Color::from_rgb8(81, 80, 80))
                 .border_radius(20.0)
                 .into();
 
-        match &self.show_modal {
+        dbg!(&self.current_popup);
+        match &self.current_popup {
             Popups::Flashcards => {
                 let rect: Element<'_, Message, Theme, Renderer> =
                     RoundedRectangle::new(200.0, 200.0)
                         .bg_color(Color::WHITE)
                         .into();
-                container(modal(
+                container(popup(
                     main_container,
                     container(stack![
                         rect,
@@ -378,7 +266,7 @@ impl App {
                 ))
             }
             Popups::None => main_container,
-            Popups::Quiz => container(modal(
+            Popups::Quiz => container(popup(
                 main_container,
                 container(stack![
                     background_rect,
@@ -439,10 +327,10 @@ impl App {
                         .center_x(Length::Fill)
                 );
 
-                container(modal(main_container, main_column, Message::None))
+                container(popup(main_container, main_column, Message::None))
             }
 
-            Popups::Configure => container(modal(
+            Popups::Configure => container(popup(
                 main_container,
                 container(stack![
                     background_rect,
@@ -454,7 +342,7 @@ impl App {
                 ]),
                 Message::None,
             )),
-            Popups::ColorPicker => container(modal(
+            Popups::ColorPicker => container(popup(
                 main_container,
                 container(stack![
                     background_rect,
@@ -473,7 +361,7 @@ impl App {
                 ]),
                 Message::None,
             )),
-            Popups::Text => container(modal(
+            Popups::Text => container(popup(
                 main_container,
                 stack![
                     background_rect,
@@ -498,7 +386,7 @@ impl App {
                 ],
                 Message::None,
             )),
-            Popups::Topics => container(modal(
+            Popups::Topics => container(popup(
                 main_container,
                 stack![
                     background_rect,
@@ -557,12 +445,115 @@ impl App {
             )),
         }
     }
+
+    fn main_container(&self) -> Element<'_, Message, Theme, Renderer> {
+        let mut answer_column: Vec<Element<Message, Theme, Renderer>> =
+            vec![Button::new("Expand answers")
+                .on_press(Message::ExpandAnswers)
+                .into()];
+        if self.expand_answers {
+            answer_column.push(Text::new(self.current_card.answer.clone()).into());
+        }
+        let mut question_column = vec![Button::new("Expand questions")
+            .on_press(Message::ExpandQuestions)
+            .into()];
+        if self.expand_questions {
+            question_column.push(Text::new(self.current_card.question.clone()).into());
+        }
+
+        let btn_style = button::Style {
+            background: Some(Color::BLACK.into()),
+            text_color: Color::WHITE,
+            ..Default::default()
+        };
+
+        row![
+            container(
+                column![
+                    Space::new(0., 0.),
+                    Text::new(" Learn\n     &\nExplore")
+                        .center()
+                        .color(Color::WHITE)
+                        .width(Length::Fill),
+                    Button::new("Flashcards").on_press(Message::Flashcards),
+                    Button::new("Quiz").on_press(Message::Quiz),
+                    Button::new("Configure").on_press(Message::Configure),
+                ]
+                .align_x(alignment::Horizontal::Center)
+                .spacing(15.)
+            )
+            .width(Length::Fixed(110.0))
+            .height(Length::Fill)
+            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43))),
+            Space::new(60.0, 0.0),
+            container(row!(
+                Space::new(7.5, 0.0),
+                container(column!(
+                    Button::new("Text")
+                        .style(move |_, _| btn_style)
+                        .on_press(Message::Text),
+                    Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                    Button::new("Topic")
+                        .style(move |_, _| btn_style)
+                        .on_press(Message::Topics),
+                    Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                    Button::new("Color")
+                        .style(move |_, _| btn_style)
+                        .on_press(Message::ColorPicker),
+                    Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                    Button::new("Image").style(move |_, _| btn_style),
+                    Space::new(Length::Fixed(0.0), Length::Fixed(5.0)),
+                    Button::new("Submit")
+                        .style(move |_, _| btn_style)
+                        .on_press(Message::SubmitCard(self.current_card.clone())),
+                )),
+                Space::new(7.5, 0.0),
+                column!(card(
+                    "1",
+                    Column::new()
+                        .push(
+                            Column::new()
+                                .push(Column::with_children(question_column))
+                                .push(Space::new(0.0, 10.0))
+                                .push(Column::new().push(Column::with_children(answer_column)))
+                        )
+                        .push(Space::new(0.0, 50))
+                )
+                .foot(Row::with_children(
+                    self.current_card
+                        .topics
+                        .iter()
+                        .filter_map(|topic_key| self.topics.get(*topic_key))
+                        .flat_map(|topic| {
+                            vec![
+                                Text::new(topic.content.clone()).into(),
+                                Space::new(5, Length::Shrink).into(),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+                .style(|_theme: &Theme, _status| style::card::Style {
+                    head_background: self
+                        .current_card
+                        .bg_color
+                        .unwrap_or(Color::from_rgb8(255, 0, 0).into()),
+                    ..Default::default()
+                })
+                .width(Length::Fixed(400.0)))
+            ))
+            .width(Length::Fixed(500.0))
+            .height(Length::Fixed(300.0))
+            .style(|_| container::Style::default().background(Color::from_rgb8(43, 43, 43)))
+            .align_x(Alignment::Center)
+        ]
+        .into()
+    }
 }
 
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list = vec![];
 
-    let item_arr: SlotMap<_, _> = match app.show_modal {
+    let item_arr: SlotMap<_, _> = match app.current_popup {
         Popups::Topics => app.topics.clone(),
         Popups::Configure => app.configurable_topics.clone(),
         Popups::Quiz => app.quiz.clone(),
@@ -600,7 +591,7 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
                                         ..Default::default()
                                     }
                                 })
-                                .on_press(match app.show_modal {
+                                .on_press(match app.current_popup {
                                     Popups::Configure => Message::SelectQuiz(id),
                                     Popups::Topics => Message::SelectTopic(id),
                                     _ => Message::None,
@@ -660,7 +651,7 @@ fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     .padding(20.0)
 }
 
-fn modal<'a, Message>(
+fn popup<'a, Message>(
     base: impl Into<Element<'a, Message, Theme, Renderer>>,
     content: impl Into<Element<'a, Message, Theme, Renderer>>,
     on_blur: Message,
