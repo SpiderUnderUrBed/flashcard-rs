@@ -13,7 +13,8 @@ use iced::{
 };
 
 use iced_aw::{card, color_picker, style};
-
+use crate::quiz::Question;
+use quiz::{Flashcard, FlashcardKey, Quiz, Topic, TopicKey, TopicTag, Study};
 use slotmap::new_key_type;
 use slotmap::SlotMap;
 
@@ -24,13 +25,12 @@ mod rectangle;
 use pin::Pin;
 use rectangle::RoundedRectangle;
 
-new_key_type! {
-    pub struct TopicKey;
-    pub struct QuestionKey;
-}
+
 
 pub fn main() -> iced::Result {
-    iced::run("Title", App::update, App::view)
+//ee;
+
+iced::run("Title", App::update, App::view)
 }
 
 #[derive(Debug, Default, Clone)]
@@ -51,41 +51,18 @@ struct App {
     current_popup: Popups,
     current_quiz: quiz::Quiz,
     current_card: Flashcard,
+    study_session: Study,
+    //cards: SlotMap<FlashcardKey, Flashcard>,
+    //topics: SlotMap<TopicKey, Topic>,
+    //current_topics: Vec<TopicKey>,
+    quiz: Quiz,
+    //staging_topic: String,
 
-    quiz: SlotMap<TopicKey, Topic>,
-    topics: SlotMap<TopicKey, Topic>,
-    configurable_topics: SlotMap<TopicKey, Topic>,
-
-    qna_collection: SlotMap<QuestionKey, Question>,
-
-    current_topic: Option<TopicKey>,
-    staging_topic: String,
     expand_questions: bool,
     expand_answers: bool,
 }
 
-#[derive(Debug, Clone, Default)]
-struct Topic {
-    content: String,
-    enabled: bool,
-    qna: Vec<QuestionKey>,
-}
 
-#[derive(Default, Debug, Clone)]
-struct Flashcard {
-    bg_color: Option<Background>,
-    question: String,
-    answer: String,
-    id: u32,
-    topics: Vec<TopicKey>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct Question {
-    question: String,
-    answer: String,
-    id: u32,
-}
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -116,83 +93,60 @@ enum Message {
 }
 
 impl App {
+  
     fn update(&mut self, message: Message) {
         match message {
-            Message::QuestionChanged(content) => {
-                self.current_card.question = content;
-                self.update(Message::UpdateTopic);
-            }
             Message::StartQuiz => {
-                self.current_quiz.start_quiz();
+                self.current_quiz.start_quiz(&self.study_session);
                 let questions = self.current_quiz.get_layout();
                 self.current_popup = Popups::StartQuiz(questions);
             }
-
             Message::SelectTopic(topic_key) => {
-                if let Some(topic) = self.topics.get_mut(topic_key) {
-                    if topic.enabled {
-                        self.current_card.topics.retain(|&t| t != topic_key);
-                        println!("Topic deselected: {}", topic.content);
-                    } else {
-                        self.current_card.topics.push(topic_key);
-                        println!("Topic selected: {}", topic.content);
-                    }
-                    topic.enabled = !topic.enabled;
-                }
+                self.current_quiz
+                    .select_topic_for_card(&mut self.study_session, topic_key);
             }
-
             Message::SelectQuiz(topic_key) => {
-                if let Some(topic) = self.configurable_topics.get_mut(topic_key) {
-                    println!("Processing topic: {}", topic.content);
-
-                    topic.enabled = !topic.enabled;
-                    // let is_selected = topic.enabled;
-                    // if is_selected {
-                    //     topic.color = Some(Color::WHITE)
-                    // } else {
-                    //     topic.color = Some(Color::BLACK)
-                    // }
-
-                    // println!("Updating current quiz session...");
-                    self.current_quiz
-                        .select_topic_to_quiz(topic, &self.qna_collection);
-                    println!("Topic {} processed.", topic.content);
-                } else {
-                    println!(
-                        "Topic key {:?} not found in configurable_topics.",
-                        topic_key
-                    );
-                }
+                self.current_quiz
+                    .select_topic_to_quiz(&mut self.study_session, topic_key);
             }
-
             Message::SubmitCard(card) => {
-                self.current_quiz.submit_card_to_quiz(card);
+                // Insert the card into the study session and mark it as current.
+                let card_key = self.study_session.cards.insert(card.clone());
+                self.study_session.current_card = Some(card_key);
+                self.current_quiz
+                    .submit_card_to_quiz(card, card_key, &self.study_session);
             }
-
             Message::EndQuiz => {
                 self.current_quiz.end_quiz();
                 self.update(Message::NoPopup);
             }
-
+            Message::SubmitTopic(topic) => {
+                self.quiz
+                    .submit_topic_to_list(&mut self.study_session, topic);
+            }
+            Message::SetTopic(content) => {
+                self.quiz.set_topic(&mut self.study_session, content);
+            }
+            Message::QuestionChanged(content) => {
+                self.current_card.question = content;
+                self.update(Message::UpdateTopic);
+            }
             Message::AnswerChanged(content) => {
                 self.current_card.answer = content;
                 self.update(Message::UpdateTopic);
             }
             Message::ExpandQuestions => self.expand_questions = !self.expand_questions,
             Message::ExpandAnswers => self.expand_answers = !self.expand_answers,
-
             Message::SubmitColor(color) => {
                 self.current_card = Flashcard {
                     bg_color: Some(Background::Color(color)),
                     question: self.current_card.question.clone(),
                     answer: self.current_card.answer.clone(),
                     topics: self.current_card.topics.clone(),
-
                     ..Default::default()
                 }
             }
-
-            // Popups
+            // Popup state messages.
             Message::Text => self.current_popup = Popups::Text,
             Message::Topics => self.current_popup = Popups::Topics,
             Message::Quiz => self.current_popup = Popups::Quiz,
@@ -200,43 +154,17 @@ impl App {
             Message::NoPopup => self.current_popup = Popups::None,
             Message::ColorPicker => self.current_popup = Popups::ColorPicker,
             Message::Flashcards => self.current_popup = Popups::Flashcards,
-
-            // Miscellaneous
+            // Miscellaneous messages.
             Message::None | Message::CancelColor | Message::ChooseColor => {}
-
-            Message::SubmitTopic(topic) => {
-                self.topics.insert(topic.clone());
-                self.configurable_topics.insert(topic);
-            }
-
-            Message::SetTopic(content) => {
-                self.staging_topic = content.clone();
-                if let Some(topic_key) = self.current_topic {
-                    if let Some(topic) = self.topics.get_mut(topic_key) {
-                        topic.content = content;
-                    }
-                }
-            }
-
             Message::UpdateQuiz(qna_queue) => {
-                self.current_quiz.qna_queue.pop_front();
-                self.current_popup = Popups::StartQuiz(qna_queue);
+                self.current_quiz.qna_queue = qna_queue.clone();
+                self.current_popup = Popups::StartQuiz(self.current_quiz.qna_queue.clone());
             }
-
             Message::UpdateTopic => {
-                let topics = self.topics.values_mut().collect::<Vec<&mut Topic>>();
-                for topic in topics {
-                    if topic.qna.pop().is_some() {
-                        let new_qna = Question {
-                            question: self.current_card.question.clone(),
-                            answer: self.current_card.answer.clone(),
-                            id: self.current_card.id,
-                        };
-                        let new_qna_key = self.qna_collection.insert(new_qna);
-                        topic.qna.push(new_qna_key);
-                    }
-                }
+                self.quiz.update_topic(&mut self.study_session);
             }
+            // AnswerChanged and QuestionChanged were already handled above.
+            _ => {}
         }
     }
 
@@ -396,17 +324,17 @@ impl App {
                                 Space::new(100.0, 0.0),
                                 column!(
                                         Space::new(0.0, 80),
-                                        container(column!(if let Some(topic_key) =
-                                            self.current_topic
+                                        container(column!(
+                                        //if let Some(topic_key) =
+                                        //if let Some(topic_key) =
+                                        //    self.study_session.current_topic
+                                        if self.study_session.current_topic.is_some()
                                         {
-                                            if let Some(topic) = self.topics.get(topic_key) {
+                                            let topic_key = self.study_session.current_topic.unwrap();
+                                            if let Some(topic) = self.study_session.topics.get(topic_key) {
                                                 column!(
                                                     Button::new("Submit").on_press(
-                                                        Message::SubmitTopic(Topic {
-                                                            content: topic.content.clone(),
-                                                            enabled: false,
-                                                            qna: topic.qna.clone(),
-                                                        })
+                                                        Message::SubmitTopic(Topic {content:topic.content.clone(),enabled:false,qna:topic.qna.clone(), topic_tag: TopicTag::Default })
                                                     ),
                                                     text_input("Put text here", &topic.content)
                                                         .on_input(Message::SetTopic),
@@ -416,14 +344,10 @@ impl App {
                                             }
                                         } else {
                                             column!(
-                                                text_input("Enter new topic", &self.staging_topic)
+                                                text_input("Enter new topic", &self.study_session.staging_topic)
                                                     .on_input(Message::SetTopic),
                                                 Button::new("Submit").on_press(
-                                                    Message::SubmitTopic(Topic {
-                                                        content: self.staging_topic.clone(),
-                                                        enabled: false,
-                                                        qna: vec![],
-                                                    })
+                                                    Message::SubmitTopic(Topic {content:self.study_session.staging_topic.clone(),enabled:false,qna:vec![], topic_tag: TopicTag::Default })
                                                 ),
                                             )
                                         }))
@@ -523,7 +447,7 @@ impl App {
                     self.current_card
                         .topics
                         .iter()
-                        .filter_map(|topic_key| self.topics.get(*topic_key))
+                        .filter_map(|topic_key| self.study_session.topics.get(*topic_key))
                         .flat_map(|topic| {
                             vec![
                                 Text::new(topic.content.clone()).into(),
@@ -553,12 +477,22 @@ impl App {
 fn topic_scrollbar(app: &App) -> Container<'static, Message> {
     let mut topic_list = vec![];
 
-    let item_arr: SlotMap<_, _> = match app.current_popup {
-        Popups::Topics => app.topics.clone(),
-        Popups::Configure => app.configurable_topics.clone(),
-        Popups::Quiz => app.quiz.clone(),
-        _ => SlotMap::with_key(),
+    let mut item_arr: SlotMap<TopicKey, Topic> = SlotMap::with_key();
+
+    let filter_tag: TopicTag = match app.current_popup {
+        Popups::Topics => TopicTag::Default,
+        Popups::Configure => TopicTag::Configure,
+        Popups::Quiz => TopicTag::Quiz,
+        _ => TopicTag::None,
     };
+
+    for (_, topic) in app.study_session.topics.iter().filter(|(_, topic)| topic.topic_tag == filter_tag) {
+        item_arr.insert(topic.clone());
+        //item_arr.insert_with_key(|new_key| topic.clone());
+    }
+
+    
+    
     for (id, topic) in item_arr.iter() {
         let final_color = if topic.enabled {
             Color::WHITE
