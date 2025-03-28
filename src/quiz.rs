@@ -240,6 +240,13 @@ impl Quiz {
             topic.enabled = !topic.enabled;
         }
     }
+
+    pub fn change_namespace(){
+
+    }
+    pub fn operation_for_namespace(){
+        
+    }
 }
 
 #[cfg(test)]
